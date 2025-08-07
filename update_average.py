@@ -2,10 +2,10 @@ from playwright.sync_api import sync_playwright
 import urllib.parse
 import json
 import statistics
+import time
 
 season_some = "289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
 season_high_enc = "835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
-
 
 url_tpl = (
     "https://fconline.nexon.com/datacenter/index?"
@@ -32,9 +32,9 @@ url_tpl = (
     "&n1Strong={grade}"
 )
 
-print(url_tpl)
-
 def format_price(won):
+    if won is None:
+        return "0"
     cho = won // 10**12
     eo = (won % 10**12) // 10**8
     man = (won % 10**8) // 10**4
@@ -54,7 +54,6 @@ def parse_price(alt):
         return None
     return int(alt.replace(",", ""))
 
-
 def filter_prices(prices, k=1, low=None, high=None):
     if not prices or len(prices) < 3:
         return prices
@@ -68,27 +67,24 @@ def filter_prices(prices, k=1, low=None, high=None):
         return prices
     return filtered
 
-
-
 data = {}
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page()
     for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
         season_enc = season_some if ovr <= 129 else season_high_enc
-
         all_prices = []
 
         # 특정 구간 1~5강, 그 외 1~8강
-        if 90 <= ovr <= 112:# 가격 정상
+        if 90 <= ovr <= 112:
             min_grade, max_grade = 1, 1
-        elif 113 <= ovr <= 114:# 가격 정상
+        elif 113 <= ovr <= 114:
             min_grade,max_grade = 2,7
-        elif 115 <= ovr <= 119:# 가격 정상
+        elif 115 <= ovr <= 119:
             min_grade,max_grade = 4,7
-        elif 120 <= ovr <= 125:# 가격 정상
+        elif 120 <= ovr <= 125:
             min_grade,max_grade = 6,8
-        elif 126 <= ovr <= 134:# 가격 정상
+        elif 126 <= ovr <= 134:
             min_grade,max_grade = 7,8
         else:
             min_grade,max_grade = 9,9
@@ -96,19 +92,23 @@ with sync_playwright() as p:
         for grade in range(min_grade, max_grade + 1):
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
             page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(2000)
-
-
+            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
 
             # 드롭다운 클릭해서 강화 등급 선택
-            page.click('div.en_selector_wrap .ability')  # 드롭다운 열기
-            page.wait_for_timeout(500)
-            page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')  # 등급 선택
-            page.wait_for_timeout(2000)
+            page.click('div.en_selector_wrap .ability')
+            page.wait_for_timeout(1000)  # 기존보다 대기시간 증가
+            page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
+            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
 
-            #page.screenshot(path=f"debug_ovr{ovr}_grade{grade}.png", full_page=True)
+            # 데이터가 나올 때까지 최대 10초(20번) 반복 체크
+            for _ in range(20):
+                rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+                if rows:
+                    break
+                page.wait_for_timeout(500)
+            else:
+                rows = []
 
-            rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
             for row in rows:
                 cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
                 if not cell:
@@ -123,41 +123,40 @@ with sync_playwright() as p:
         # 특정 오버롤 구간에만 가격 범위 필터링 적용
         if 111 <= ovr <= 119:
             sorted_prices = sorted(all_prices)
-            min80 = sorted_prices[:150]  # 최저가 80명
-            filtered_prices = filter_prices(min80, k=1)  # 표준편차 필터 한 번 더 적용!
+            min80 = sorted_prices[:150]
+            filtered_prices = filter_prices(min80, k=1)
         elif 120 <= ovr <= 127:
-            # 127구간: 최저가 10명 평균값 사용
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:20]  # 최저가 10명
-            filtered_prices = min10  # 그대로 평균내기
+            min10 = sorted_prices[:20]
+            filtered_prices = min10
         elif 128 <= ovr <= 129:
-            #  최저가 10명 평균값 사용
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:15]  # 최저가 10명
-            filtered_prices = min10  # 그대로 평균내기
+            min10 = sorted_prices[:15]
+            filtered_prices = min10
         elif 130 <= ovr <= 134:
-            #  최저가 10명 평균값 사용
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:10]  # 최저가 10명
-            filtered_prices = min10  # 그대로 평균내기
+            min10 = sorted_prices[:10]
+            filtered_prices = min10
         elif ovr == 135:
-            #  최저가 10명 평균값 사용
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:5]  # 최저가 10명
-            filtered_prices = min10  # 그대로 평균내기
+            min10 = sorted_prices[:5]
+            filtered_prices = min10
         elif 136 <= ovr <= 140:
-            #  최저가 10명 평균값 사용
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:15]  # 최저가 10명
-            filtered_prices = min10  # 그대로 평균내기
+            min10 = sorted_prices[:15]
+            filtered_prices = min10
         else:
             filtered_prices = filter_prices(all_prices, k=1)
 
         print(f"OVR {ovr} filtered prices:", filtered_prices)
 
-        avg_price = sum(filtered_prices) // len(filtered_prices) if filtered_prices else None
-        data[ovr] = avg_price
-        print(f"{ovr} OVR 전체 평균(이상치 제거): {format_price(avg_price)}")
+        if filtered_prices:
+            avg_price = sum(filtered_prices) // len(filtered_prices)
+            data[ovr] = avg_price
+            print(f"{ovr} OVR 전체 평균(이상치 제거): {format_price(avg_price)}")
+        else:
+            data[ovr] = None
+            print(f"{ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
 
     browser.close()
 
