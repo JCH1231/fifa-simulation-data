@@ -2,7 +2,7 @@ name: Auto Update average.json
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # 2시간마다
+    - cron: '0 */2 * * *'  # 2시간마다 실행
   workflow_dispatch:
 
 jobs:
@@ -26,16 +26,10 @@ jobs:
     - name: Run update script
       run: python update_average.py
 
-    - name: Pull latest changes      # ⭐️ 이부분 추가!
-      run: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git pull --rebase
-
     - name: Commit and push if changed
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
         git add average.json
-        git commit -m "자동 갱신: average.json" || exit 0
+        git commit -m "자동 갱신: average.json" || echo "no changes"
         git push
