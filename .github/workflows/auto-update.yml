@@ -27,14 +27,27 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        cache: 'pip'  # pip 캐시도 자동 적용
 
-    - name: Install Playwright
+    # Playwright 브라우저 바이너리 캐시
+    - name: Restore ms-playwright cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-ms-playwright-v1  # 버전 바뀌면 키만 바꿔주면 됨
+
+    - name: Install Playwright (skip download if cache hit)
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
       run: |
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install playwright
+        # 캐시가 있으면 빠르게 완료됨
         playwright install --with-deps chromium
 
     - name: Run update script
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
       run: python update_average.py
 
     - name: Rebase on latest main (avoid non-ff)
