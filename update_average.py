@@ -115,7 +115,7 @@ with sync_playwright() as p:
     )
     context.set_default_timeout(15_000)  # 15초 기본 타임아웃
 
-    # [추가] 리소스 차단(이미지/폰트/미디어)
+    # 리소스 차단(이미지/폰트/미디어)
     def _router(route):
         r = route.request
         rt = r.resource_type
@@ -125,6 +125,8 @@ with sync_playwright() as p:
     context.route("**/*", _router)
 
     page = context.new_page()
+    # 기본 내비게이션 타임아웃
+    page.set_default_navigation_timeout(15_000)
 
     for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
         season_enc = season_some if ovr <= 129 else season_high_enc
@@ -148,14 +150,16 @@ with sync_playwright() as p:
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
 
             try:
-                page.goto(url, wait_until="networkidle")
+                # networkidle 대신 domcontentloaded + 명시적 timeout
+                print(f"[START] OVR {ovr} / G{grade}")
+                page.goto(url, wait_until="domcontentloaded", timeout=15_000)
                 # divPlayerList 나타날 때까지 대기
                 page.wait_for_selector("#divPlayerList", state="visible", timeout=10_000)
 
                 # 등급 드롭다운 클릭은 기본 비활성화(파라미터로 적용되는 경우가 많음)
                 need_click = False
 
-                # [추가] 파라미터 적용 실패 시 클릭 폴백
+                # 파라미터 적용 실패 시 클릭 폴백
                 use_click = False
                 try:
                     page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=5_000)
@@ -207,8 +211,11 @@ with sync_playwright() as p:
                     if price:
                         all_prices.append(price)
 
+                print(f"[DONE ] OVR {ovr} / G{grade} rows={len(rows)} prices={len(all_prices)}")
+
             except Exception:
                 # 이 grade는 스킵
+                print(f"[SKIP ] OVR {ovr} / G{grade} (navigation or selector timeout)")
                 continue
 
         print(f"OVR {ovr} raw prices (n={len(all_prices)}):", all_prices[:10], "..." if len(all_prices) > 10 else "")
