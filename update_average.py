@@ -4,6 +4,7 @@ import json
 import statistics
 import time
 import random
+import os
 
 season_some = "289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
 season_high_enc = "835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
@@ -75,7 +76,7 @@ def filter_prices(prices, k=1, low=None, high=None):
     return filtered or prices
 
 def filter_by_ovr(ovr, all_prices):
-    """네가 쓰던 OVR 구간별 필터 로직 + 표본 적으면 스킵"""
+    """OVR 구간별 필터 + 표본 적으면 스킵"""
     if not all_prices:
         return []
     n = len(all_prices)
@@ -113,6 +114,16 @@ with sync_playwright() as p:
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
     )
     context.set_default_timeout(15_000)  # 15초 기본 타임아웃
+
+    # [추가] 리소스 차단(이미지/폰트/미디어)
+    def _router(route):
+        r = route.request
+        rt = r.resource_type
+        if rt in {"image", "font", "media"}:
+            return route.abort()
+        return route.continue_()
+    context.route("**/*", _router)
+
     page = context.new_page()
 
     for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
@@ -135,57 +146,70 @@ with sync_playwright() as p:
 
         for grade in range(min_grade, max_grade + 1):
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
-            page.goto(url, wait_until="networkidle")
-            # divPlayerList 나타날 때까지 대기 (고정 sleep 제거)
-            page.wait_for_selector("#divPlayerList", state="visible", timeout=10_000)
 
-            # 등급 드롭다운 클릭은 기본 비활성화(파라미터로 이미 적용되는 경우가 많음)
-            need_click = False
-            if need_click:
-                page.click('div.en_selector_wrap .ability')
-                page.wait_for_selector(f".selector_list a.en_level{grade}", state="visible", timeout=8_000)
-                page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
-                page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
-            else:
-                # 등급 셀 존재 대기
+            try:
+                page.goto(url, wait_until="networkidle")
+                # divPlayerList 나타날 때까지 대기
+                page.wait_for_selector("#divPlayerList", state="visible", timeout=10_000)
+
+                # 등급 드롭다운 클릭은 기본 비활성화(파라미터로 적용되는 경우가 많음)
+                need_click = False
+
+                # [추가] 파라미터 적용 실패 시 클릭 폴백
+                use_click = False
                 try:
-                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
+                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=5_000)
                 except Exception:
-                    pass
+                    use_click = True
 
-            # 데이터 로딩 재시도(빈 응답 방지)
-            rows = []
-            for attempt in range(3):  # 최대 3회 재시도
-                for _ in range(20):
-                    rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+                if need_click or use_click:
+                    page.click('div.en_selector_wrap .ability')
+                    page.wait_for_selector(f".selector_list a.en_level{grade}", state="visible", timeout=8_000)
+                    page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
+                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
+                else:
+                    try:
+                        page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
+                    except Exception:
+                        pass
+
+                # 데이터 로딩 재시도(빈 응답 방지)
+                rows = []
+                for attempt in range(3):  # 최대 3회 재시도
+                    for _ in range(20):
+                        rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+                        if rows:
+                            break
+                        page.wait_for_timeout(500)
                     if rows:
                         break
-                    page.wait_for_timeout(500)
-                if rows:
-                    break
-                page.reload(wait_until="domcontentloaded")
-                # 약간 랜덤 지연(차단/캐시 타이밍 완화)
-                page.wait_for_timeout(random.randint(200, 600))
-                try:
-                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
-                except Exception:
-                    pass
+                    # 완전 새로고침 + 네트워크 안정화
+                    page.reload(wait_until="networkidle")
+                    page.wait_for_timeout(random.randint(200, 600))
+                    try:
+                        page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=10_000)
+                    except Exception:
+                        pass
 
-            # 행 파싱
-            for row in rows or []:
-                cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
-                if not cell:
-                    continue
-                alt = cell.get_attribute("alt")
-                price = parse_price(alt)
-                if not price:
-                    title = cell.get_attribute("title")
-                    price = parse_price(title)
-                if not price:
-                    txt = (cell.inner_text() or "").strip()
-                    price = parse_price(txt)
-                if price:
-                    all_prices.append(price)
+                # 행 파싱
+                for row in rows or []:
+                    cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
+                    if not cell:
+                        continue
+                    alt = cell.get_attribute("alt")
+                    price = parse_price(alt)
+                    if not price:
+                        title = cell.get_attribute("title")
+                        price = parse_price(title)
+                    if not price:
+                        txt = (cell.inner_text() or "").strip()
+                        price = parse_price(txt)
+                    if price:
+                        all_prices.append(price)
+
+            except Exception:
+                # 이 grade는 스킵
+                continue
 
         print(f"OVR {ovr} raw prices (n={len(all_prices)}):", all_prices[:10], "..." if len(all_prices) > 10 else "")
 
@@ -201,9 +225,15 @@ with sync_playwright() as p:
             data[ovr] = None
             print(f"{ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
 
-        # 중간 저장(크롤링 중 꺼져도 이어서 가능)
-        with open("average.json", "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # 중간 저장(변화 있을 때만)
+        try:
+            with open("average.json", "r", encoding="utf-8") as _f:
+                _old = json.load(_f)
+        except Exception:
+            _old = {}
+        if _old.get(str(ovr)) != data.get(ovr):
+            with open("average.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
     context.close()
     browser.close()
