@@ -3,6 +3,7 @@ import urllib.parse
 import json
 import statistics
 import time
+import random  # [추가] import 블록 맨 아래 줄 바로 밑에 추가
 
 season_some = "289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
 season_high_enc = "835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
@@ -67,10 +68,67 @@ def filter_prices(prices, k=1, low=None, high=None):
         return prices
     return filtered
 
+# [추가] format_price 바로 아래 줄에 유틸 함수 3개 추가
+def safe_goto(page, url, attempts=3):
+    for i in range(attempts):
+        try:
+            page.goto(url, wait_until="domcontentloaded")
+            return True
+        except Exception:
+            time.sleep(2 * (i + 1))
+    return False
+
+def wait_rows_or_reload(page, grade, reload_attempts=2):
+    sel_open = 'div.en_selector_wrap .ability'
+    sel_item = f'div.en_selector_wrap .selector_list a.en_level{grade}'
+    sel_rows = "#divPlayerList > .tr[onclick]"
+    for r in range(reload_attempts + 1):
+        try:
+            page.wait_for_selector(sel_open, timeout=10000)
+            page.click(sel_open)
+            page.wait_for_selector(sel_item, timeout=10000)
+            page.click(sel_item)
+            page.wait_for_selector(sel_rows, timeout=15000)
+            return True
+        except Exception:
+            if r < reload_attempts:
+                page.reload(wait_until="domcontentloaded")
+                time.sleep(1.5 * (r + 1))
+            else:
+                ts = int(time.time())
+                try:
+                    page.screenshot(path=f"debug_{ts}.png", full_page=True)
+                except Exception:
+                    pass
+                try:
+                    with open(f"debug_{ts}.html", "w", encoding="utf-8") as fh:
+                        fh.write(page.content())
+                except Exception:
+                    pass
+                return False
+
+def sleep_jitter(base_ms=1200, spread_ms=800):
+    time.sleep((base_ms + random.randint(0, spread_ms)) / 1000.0)
+
 data = {}
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+    # [교체] 아래 두 줄 삭제:
+    # browser = p.chromium.launch(headless=True)
+    # page = browser.new_page()
+    # [추가] 위 두 줄 대신 컨텍스트/페이지 생성으로 교체
+    browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        ),
+        locale="ko-KR",
+        timezone_id="Asia/Seoul",
+    )
+    page = context.new_page()
+    page.set_default_timeout(20000)
+    page.set_default_navigation_timeout(30000)
+
     for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
         season_enc = season_some if ovr <= 129 else season_high_enc
         all_prices = []
@@ -79,35 +137,53 @@ with sync_playwright() as p:
         if 90 <= ovr <= 112:
             min_grade, max_grade = 1, 1
         elif 113 <= ovr <= 114:
-            min_grade,max_grade = 2,7
+            min_grade, max_grade = 2, 7
         elif 115 <= ovr <= 119:
-            min_grade,max_grade = 4,7
+            min_grade, max_grade = 4, 7
         elif 120 <= ovr <= 125:
-            min_grade,max_grade = 6,8
+            min_grade, max_grade = 6, 8
         elif 126 <= ovr <= 134:
-            min_grade,max_grade = 7,8
+            min_grade, max_grade = 7, 8
         else:
-            min_grade,max_grade = 9,9
+            min_grade, max_grade = 9, 9
 
         for grade in range(min_grade, max_grade + 1):
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
-            page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
 
-            # 드롭다운 클릭해서 강화 등급 선택
-            page.click('div.en_selector_wrap .ability')
-            page.wait_for_timeout(1000)  # 기존보다 대기시간 증가
-            page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
-            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
+            # [교체] 아래 block 전체 삭제:
+            # page.goto(url, wait_until="networkidle")
+            # page.wait_for_timeout(3500)
+            # page.click('div.en_selector_wrap .ability')
+            # page.wait_for_timeout(1000)
+            # page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
+            # page.wait_for_timeout(3500)
+            # for _ in range(20):
+            #     rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+            #     if rows:
+            #         break
+            #     page.wait_for_timeout(500)
+            # else:
+            #     rows = []
 
-            # 데이터가 나올 때까지 최대 10초(20번) 반복 체크
-            for _ in range(20):
-                rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
-                if rows:
-                    break
-                page.wait_for_timeout(500)
-            else:
-                rows = []
+            # [추가] 위 block 대신 안전 이동 + 정확 대기 + 재시도
+            if not safe_goto(page, url, attempts=3):
+                sleep_jitter()
+                continue
+            sleep_jitter(1400, 900)
+
+            ok = wait_rows_or_reload(page, grade, reload_attempts=2)
+            if not ok:
+                print(f"[warn] OVR {ovr} grade {grade}: no rows after retries")
+                continue
+
+            # [추가] 보수적 스크롤 한 번
+            sleep_jitter(800, 500)
+            try:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            except Exception:
+                pass
+
+            rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
 
             for row in rows:
                 cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
@@ -158,6 +234,11 @@ with sync_playwright() as p:
             data[ovr] = None
             print(f"{ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
 
+        # [추가] OVR 한 사이클 끝나고 지터 대기
+        sleep_jitter(1600, 1200)
+
+    # [추가] browser.close() 바로 윗줄에 context.close() 추가
+    context.close()
     browser.close()
 
 with open("average.json", "w", encoding="utf-8") as f:
