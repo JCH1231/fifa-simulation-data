@@ -26,23 +26,21 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
-        cache: 'pip'  # pip 캐시도 자동 적용
+        python-version: '3.10'   # ← pip 캐시 옵션 제거 (requirements.txt 없어도 OK)
 
     # Playwright 브라우저 바이너리 캐시
     - name: Restore ms-playwright cache
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-ms-playwright-v1  # 버전 바뀌면 키만 바꿔주면 됨
+        key: ${{ runner.os }}-ms-playwright-v1
 
-    - name: Install Playwright (skip download if cache hit)
+    - name: Install Playwright (use cache if present)
       env:
         PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
       run: |
         python -m pip install --upgrade pip
         pip install playwright
-        # 캐시가 있으면 빠르게 완료됨
         playwright install --with-deps chromium
 
     - name: Run update script
@@ -63,7 +61,6 @@ jobs:
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
 
-        # average.json 변경 없으면 종료
         if git diff --quiet -- average.json; then
           echo "no changes"
           exit 0
@@ -71,6 +68,5 @@ jobs:
 
         git add average.json
         git commit -m "자동 갱신: average.json [skip ci]"
-        # 경쟁 상황 대비 한번 더 최신 반영
         git pull --rebase origin "${GITHUB_REF_NAME:-main}" || true
         git push origin HEAD:"${GITHUB_REF_NAME:-main}"
