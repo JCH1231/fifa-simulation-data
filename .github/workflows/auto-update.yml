@@ -1,5 +1,12 @@
 name: Auto Update average.json
 
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-update-average-json
+  cancel-in-progress: true
+
 on:
   schedule:
     - cron: '0 */2 * * *'  # 2시간마다 실행
@@ -11,7 +18,10 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: true
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -26,10 +36,25 @@ jobs:
     - name: Run update script
       run: python update_average.py
 
-    - name: Commit and push if changed
+    - name: Rebase on latest main (avoid non-ff)
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
+        git pull --rebase origin "${GITHUB_REF_NAME:-main}" || true
+
+    - name: Commit and push if changed
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
+
+        if git diff --quiet -- average.json; then
+          echo "no changes"
+          exit 0
+        fi
+
         git add average.json
-        git commit -m "자동 갱신: average.json" || echo "no changes"
-        git push
+        git commit -m "자동 갱신: average.json [skip ci]"
+        git pull --rebase origin "${GITHUB_REF_NAME:-main}" || true
+        git push origin HEAD:"${GITHUB_REF_NAME:-main}"
