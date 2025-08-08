@@ -1,7 +1,8 @@
 from playwright.sync_api import sync_playwright
+import urllib.parse
 import json
 import statistics
-import random
+import time
 
 season_some = "289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
 season_high_enc = "835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
@@ -37,137 +38,127 @@ def format_price(won):
     cho = won // 10**12
     eo = (won % 10**12) // 10**8
     man = (won % 10**8) // 10**4
+
     parts = []
-    if cho > 0: parts.append(f"{cho}조")
-    if eo > 0: parts.append(f"{eo}억")
-    if man > 0: parts.append(f"{man}만")
+    if cho > 0:
+        parts.append(f"{cho}조")
+    if eo > 0:
+        parts.append(f"{eo}억")
+    if man > 0:
+        parts.append(f"{man}만")
+
     return " ".join(parts) if parts else "0"
 
-def parse_price(s):
-    if not s: return None
-    s = "".join(ch for ch in str(s) if ch.isdigit() or ch == ",")
-    if not s: return None
-    try: return int(s.replace(",", ""))
-    except: return None
+def parse_price(alt):
+    if not alt:
+        return None
+    return int(alt.replace(",", ""))
 
 def filter_prices(prices, k=1, low=None, high=None):
-    if not prices or len(prices) < 3: return prices
-    mean = statistics.mean(prices); stdev = statistics.stdev(prices)
-    if stdev == 0: return prices
+    if not prices or len(prices) < 3:
+        return prices
+    mean = statistics.mean(prices)
+    stdev = statistics.stdev(prices)
     if low is not None and high is not None:
-        out = [x for x in prices if abs(x-mean) <= k*stdev and low <= x <= high]
+        filtered = [x for x in prices if abs(x - mean) <= k * stdev and low <= x <= high]
     else:
-        out = [x for x in prices if abs(x-mean) <= k*stdev]
-    return out or prices
-
-def filter_by_ovr(ovr, arr):
-    if not arr: return []
-    n = len(arr)
-    if n < 5: return arr
-    arr = sorted(arr)
-    if 111 <= ovr <= 119: return filter_prices(arr[:min(150,n)], k=1)
-    if 120 <= ovr <= 127: return arr[:min(20,n)]
-    if 128 <= ovr <= 129: return arr[:min(15,n)]
-    if 130 <= ovr <= 134: return arr[:min(10,n)]
-    if ovr == 135:      return arr[:min(5,n)]
-    if 136 <= ovr <= 140:return arr[:min(15,n)]
-    return filter_prices(arr, k=1)
+        filtered = [x for x in prices if abs(x - mean) <= k * stdev]
+    if not filtered:
+        return prices
+    return filtered
 
 data = {}
-
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    context = browser.new_context(
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
-    )
-    context.set_default_timeout(10_000)  # 기본 10초로 다이어트
-
-    # 리소스 차단(이미지/폰트/미디어)
-    def _router(route):
-        rt = route.request.resource_type
-        if rt in {"image", "font", "media"}:
-            return route.abort()
-        return route.continue_()
-    context.route("**/*", _router)
-
-    page = context.new_page()
-    page.set_default_navigation_timeout(12_000)
-
-    for ovr in range(90, 137):
+    page = browser.new_page()
+    for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
         season_enc = season_some if ovr <= 129 else season_high_enc
         all_prices = []
 
-        # 등급 범위
-        if 90  <= ovr <= 112: min_g, max_g = 1, 1
-        elif 113 <= ovr <= 114: min_g, max_g = 2, 7
-        elif 115 <= ovr <= 119: min_g, max_g = 4, 7
-        elif 120 <= ovr <= 125: min_g, max_g = 6, 8
-        elif 126 <= ovr <= 134: min_g, max_g = 7, 8
-        else:                   min_g, max_g = 9, 9
-
-        for grade in range(min_g, max_g + 1):
-            url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
-
-            try:
-                print(f"[START] OVR {ovr} / G{grade}")
-                # 빠른 네비 + 필요 요소만 셀렉터로 기다림
-                page.goto(url, wait_until="domcontentloaded", timeout=12_000)
-                page.wait_for_selector("#divPlayerList", state="visible", timeout=6_000)
-
-                # URL 파라미터 적용 실패 시 한 번만 클릭 폴백
-                use_click = False
-                try:
-                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=4_000)
-                except:
-                    use_click = True
-                if use_click:
-                    page.click('div.en_selector_wrap .ability')
-                    page.wait_for_selector(f".selector_list a.en_level{grade}", state="visible", timeout=5_000)
-                    page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
-                    page.wait_for_selector(f"#divPlayerList .td_ar_bp .span_bp{grade}", timeout=6_000)
-
-                # 공백일 때만 1회 재시도
-                rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
-                if not rows:
-                    page.reload(wait_until="domcontentloaded")
-                    page.wait_for_selector("#divPlayerList", state="visible", timeout=5_000)
-                    rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
-
-                for row in rows or []:
-                    cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
-                    if not cell: continue
-                    price = parse_price(cell.get_attribute("alt")) \
-                            or parse_price(cell.get_attribute("title")) \
-                            or parse_price((cell.inner_text() or "").strip())
-                    if price: all_prices.append(price)
-
-                print(f"[DONE ] OVR {ovr} / G{grade} rows={len(rows)} prices={len(all_prices)}")
-
-            except Exception:
-                print(f"[SKIP ] OVR {ovr} / G{grade}")
-                continue
-
-        print(f"OVR {ovr} raw (n={len(all_prices)}):", all_prices[:10], "..." if len(all_prices) > 10 else "")
-        filtered = filter_by_ovr(ovr, all_prices)
-        print(f"OVR {ovr} filtered (n={len(filtered)}):", filtered[:10], "..." if len(filtered) > 10 else "")
-
-        data[ovr] = (sum(filtered)//len(filtered)) if filtered else None
-        if filtered:
-            print(f"{ovr} OVR 평균: {format_price(data[ovr])}")
+        # 특정 구간 1~5강, 그 외 1~8강
+        if 90 <= ovr <= 112:
+            min_grade, max_grade = 1, 1
+        elif 113 <= ovr <= 114:
+            min_grade,max_grade = 2,7
+        elif 115 <= ovr <= 119:
+            min_grade,max_grade = 4,7
+        elif 120 <= ovr <= 125:
+            min_grade,max_grade = 6,8
+        elif 126 <= ovr <= 134:
+            min_grade,max_grade = 7,8
         else:
-            print(f"{ovr} OVR 평균: 데이터 없음")
+            min_grade,max_grade = 9,9
 
-        # 변화 있을 때만 저장
-        try:
-            with open("average.json", "r", encoding="utf-8") as f:
-                old = json.load(f)
-        except Exception:
-            old = {}
-        if old.get(str(ovr)) != data.get(ovr):
-            with open("average.json", "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+        for grade in range(min_grade, max_grade + 1):
+            url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
+            page.goto(url, wait_until="networkidle")
+            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
 
-    context.close(); browser.close()
+            # 드롭다운 클릭해서 강화 등급 선택
+            page.click('div.en_selector_wrap .ability')
+            page.wait_for_timeout(1000)  # 기존보다 대기시간 증가
+            page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
+            page.wait_for_timeout(3500)  # 기존보다 대기시간 증가
+
+            # 데이터가 나올 때까지 최대 10초(20번) 반복 체크
+            for _ in range(20):
+                rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+                if rows:
+                    break
+                page.wait_for_timeout(500)
+            else:
+                rows = []
+
+            for row in rows:
+                cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
+                if not cell:
+                    continue
+                alt = cell.get_attribute('alt')
+                price = parse_price(alt)
+                if price:
+                    all_prices.append(price)
+
+        print(f"OVR {ovr} raw prices:", all_prices)
+
+        # 특정 오버롤 구간에만 가격 범위 필터링 적용
+        if 111 <= ovr <= 119:
+            sorted_prices = sorted(all_prices)
+            min80 = sorted_prices[:150]
+            filtered_prices = filter_prices(min80, k=1)
+        elif 120 <= ovr <= 127:
+            sorted_prices = sorted(all_prices)
+            min10 = sorted_prices[:20]
+            filtered_prices = min10
+        elif 128 <= ovr <= 129:
+            sorted_prices = sorted(all_prices)
+            min10 = sorted_prices[:15]
+            filtered_prices = min10
+        elif 130 <= ovr <= 134:
+            sorted_prices = sorted(all_prices)
+            min10 = sorted_prices[:10]
+            filtered_prices = min10
+        elif ovr == 135:
+            sorted_prices = sorted(all_prices)
+            min10 = sorted_prices[:5]
+            filtered_prices = min10
+        elif 136 <= ovr <= 140:
+            sorted_prices = sorted(all_prices)
+            min10 = sorted_prices[:15]
+            filtered_prices = min10
+        else:
+            filtered_prices = filter_prices(all_prices, k=1)
+
+        print(f"OVR {ovr} filtered prices:", filtered_prices)
+
+        if filtered_prices:
+            avg_price = sum(filtered_prices) // len(filtered_prices)
+            data[ovr] = avg_price
+            print(f"{ovr} OVR 전체 평균(이상치 제거): {format_price(avg_price)}")
+        else:
+            data[ovr] = None
+            print(f"{ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
+
+    browser.close()
 
 with open("average.json", "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
