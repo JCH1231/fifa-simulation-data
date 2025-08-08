@@ -150,21 +150,6 @@ with sync_playwright() as p:
         for grade in range(min_grade, max_grade + 1):
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
 
-            # [교체] 아래 block 전체 삭제:
-            # page.goto(url, wait_until="networkidle")
-            # page.wait_for_timeout(3500)
-            # page.click('div.en_selector_wrap .ability')
-            # page.wait_for_timeout(1000)
-            # page.click(f'div.en_selector_wrap .selector_list a.en_level{grade}')
-            # page.wait_for_timeout(3500)
-            # for _ in range(20):
-            #     rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
-            #     if rows:
-            #         break
-            #     page.wait_for_timeout(500)
-            # else:
-            #     rows = []
-
             # [추가] 위 block 대신 안전 이동 + 정확 대기 + 재시도
             if not safe_goto(page, url, attempts=3):
                 sleep_jitter()
