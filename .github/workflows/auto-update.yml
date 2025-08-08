@@ -30,8 +30,9 @@ jobs:
 
     - name: Install Playwright
       run: |
+        pip install --upgrade pip
         pip install playwright
-        playwright install chromium
+        playwright install --with-deps chromium
 
     - name: Run update script
       run: python update_average.py
@@ -49,6 +50,7 @@ jobs:
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
 
+        # average.json 변경 없으면 종료
         if git diff --quiet -- average.json; then
           echo "no changes"
           exit 0
@@ -56,5 +58,6 @@ jobs:
 
         git add average.json
         git commit -m "자동 갱신: average.json [skip ci]"
+        # 경쟁 상황 대비 한번 더 최신 반영
         git pull --rebase origin "${GITHUB_REF_NAME:-main}" || true
         git push origin HEAD:"${GITHUB_REF_NAME:-main}"
