@@ -30,6 +30,16 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 848,
+    "className": "WS (Winning Streak)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/ws.png"
+  },
+  {
+    "seasonId": 850,
+    "className": "25FSL (25 FCO Superchampions League)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25fsl.png"
+  },
+  {
     "seasonId": 846,
     "className": "DCB (Dramatic Comebacks)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/dcb.png"
