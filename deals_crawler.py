@@ -7,7 +7,6 @@ import re
 # --- 설정값 ---
 BASE_URL = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/"
 OUTPUT_FILENAME = "deals.json"
-SUCCESS_PROBS = [1.00, 0.81, 0.64, 0.50, 0.26, 0.15, 0.07]
 ALLOWED_SEASON_CODES = {
     "100", "113", "114", "848", "850", "846", "845", "840", "839", "836", "829",
     "828", "827", "826", "825", "821", "818", "814", "813", "802", "290",
@@ -43,9 +42,21 @@ def get_cheapest_material_cost(target_ovr, stage, average_prices, gauge_table):
 
     if not candidates: return float('inf')
 
+    near = [it for it in candidates if abs(it[0] - target_ovr) <= 10]
+    by_ratio_full = sorted([(ov, pr, pe, (pr / pe)) for ov, pr, pe in candidates if pe > 0], key=lambda x: x[3])
+    by_ratio = [t[:3] for t in by_ratio_full[:20]]
+
+    pool = {ov: (pr, pe) for ov, pr, pe in near + by_ratio}
+    pool_items = [(ov, pr, pe) for ov, (pr, pe) in pool.items()]
+
+    if not pool_items:
+        pool_items = [t[:3] for t in by_ratio_full]
+
+    if not pool_items: return float('inf')
+
     SCALE, CAP = 100, 100 * 100
-    values = {ov: int(round(pe * SCALE)) for ov, pr, pe in candidates}
-    costs = {ov: pr for ov, pr, pe in candidates}
+    values = {ov: int(round(pe * SCALE)) for ov, pr, pe in pool_items}
+    costs = {ov: pr for ov, pr, pe in pool_items}
 
     dp = [{} for _ in range(6)]
     dp[0][0] = 0
@@ -60,30 +71,71 @@ def get_cheapest_material_cost(target_ovr, stage, average_prices, gauge_table):
                     current_dp[new_p] = new_cost
         dp[c] = current_dp
 
-    return dp[5].get(CAP, float('inf'))
+    best_cost = float('inf')
+    for c in range(1, 6):
+        cost = dp[c].get(CAP, float('inf'))
+        if cost < best_cost:
+            best_cost = cost
+
+    return best_cost
 
 
+# --- [함수 전체 수정] ---
+# 강화 시뮬레이터의 복구 비용 계산 로직을 반영한 새로운 함수
 def estimate_total_cost(base_ovr, target_grade, average_prices, gauge_table, cost_cache):
-    total_cost = 0
-    grade_bonus_map = {1: 0, 2: 1, 3: 2, 4: 4, 5: 6, 6: 8, 7: 11}
-    for i in range(1, target_grade):
-        prob = SUCCESS_PROBS[i - 1]
-        if prob <= 0: return float('inf')
+    SUCCESS_PROBS = [1.00, 0.81, 0.64, 0.50, 0.26, 0.15, 0.07]
+    RECOVERY_PROBS = {
+        1: {1: 1.00}, 2: {1: 1.00}, 3: {1: 0.65, 2: 0.35},
+        4: {1: 0.55, 2: 0.45}, 5: {1: 0.35, 2: 0.40, 3: 0.25},
+        6: {1: 0.10, 2: 0.32, 3: 0.36, 4: 0.22},
+        7: {1: 0.04, 2: 0.10, 3: 0.30, 4: 0.35, 5: 0.21},
+    }
+    GRADE_BONUS_MAP = {1: 0, 2: 1, 3: 2, 4: 4, 5: 6, 6: 8, 7: 11}
 
-        attempts = 1 / prob
-        current_card_ovr = base_ovr + grade_bonus_map.get(i, 0)
+    memo = {}
 
-        # [핵심] 캐시 확인 및 사용
-        cache_key = (current_card_ovr, i)
+    def get_cost_to_reach(current_grade, final_grade):
+        if current_grade >= final_grade:
+            return 0
+
+        if (current_grade, final_grade) in memo:
+            return memo[(current_grade, final_grade)]
+
+        stage = current_grade
+        current_card_ovr = base_ovr + GRADE_BONUS_MAP.get(stage, 0)
+
+        cache_key = (current_card_ovr, stage)
         if cache_key in cost_cache:
-            material_cost_one_attempt = cost_cache[cache_key]
+            material_cost = cost_cache[cache_key]
         else:
-            material_cost_one_attempt = get_cheapest_material_cost(current_card_ovr, i, average_prices, gauge_table)
-            cost_cache[cache_key] = material_cost_one_attempt # 계산 결과를 캐시에 저장
+            material_cost = get_cheapest_material_cost(current_card_ovr, stage, average_prices, gauge_table)
+            cost_cache[cache_key] = material_cost
 
-        if material_cost_one_attempt == float('inf'): return float('inf')
-        total_cost += attempts * material_cost_one_attempt
-    return total_cost
+        if material_cost == float('inf'):
+            return float('inf')
+
+        success_prob = SUCCESS_PROBS[stage - 1]
+        fail_prob = 1 - success_prob
+
+        recovery_cost = 0
+        if fail_prob > 0:
+            recovery_options = RECOVERY_PROBS.get(stage, {max(1, stage - 1): 1.0})
+            for recovery_grade, prob in recovery_options.items():
+                cost_to_recover = get_cost_to_reach(recovery_grade, current_grade)
+                if cost_to_recover == float('inf'):
+                    return float('inf')
+                recovery_cost += prob * cost_to_recover
+
+        cost_after_success = get_cost_to_reach(current_grade + 1, final_grade)
+        if cost_after_success == float('inf'):
+            return float('inf')
+
+        expected_cost = (material_cost + fail_prob * recovery_cost) / success_prob + cost_after_success
+
+        memo[(current_grade, final_grade)] = expected_cost
+        return expected_cost
+
+    return get_cost_to_reach(1, target_grade)
 
 
 def _fetch_all_grade_prices(spid):
@@ -109,7 +161,6 @@ def main():
     candidate_spids = [p['spid'] for p in all_players if str(p.get('spid', ''))[:3] in ALLOWED_SEASON_CODES]
     print(f"Processing {len(candidate_spids)} players from allowed seasons...")
 
-    # 재료비 계산 결과를 저장할 캐시 생성
     material_cost_cache = {}
 
     deals_to_save = []
@@ -133,8 +184,8 @@ def main():
                 price_target = all_prices[grade - 1]
                 if price_target <= price_1: continue
 
-                # 캐시를 estimate_total_cost 함수에 전달
-                material_cost_only = estimate_total_cost(int(player['overall']), grade, average_prices, gauge_table, material_cost_cache)
+                material_cost_only = estimate_total_cost(int(player['overall']), grade, average_prices, gauge_table,
+                                                         material_cost_cache)
                 if material_cost_only == float('inf'): continue
 
                 total_investment = material_cost_only + price_1
@@ -148,6 +199,7 @@ def main():
                         'profit': profit,
                         'profit_margin': profit_margin,
                         'total_investment': total_investment,
+                        'price_1': price_1,
                     }
                     deals_to_save.append(deal_data)
 
