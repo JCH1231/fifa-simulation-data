@@ -200,6 +200,7 @@ def main():
                         'profit_margin': profit_margin,
                         'total_investment': total_investment,
                         'price_1': price_1,
+                        'all_prices': all_prices,  # [추가] 계산에 사용된 1~13강 가격 정보 저장
                     }
                     deals_to_save.append(deal_data)
 
