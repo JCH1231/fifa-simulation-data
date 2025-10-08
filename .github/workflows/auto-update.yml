@@ -1,4 +1,4 @@
-name: Auto Update average.json
+name: Auto Update Data
 
 on:
   schedule:
@@ -11,25 +11,30 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # 버전 업데이트
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Install Playwright
+    - name: Install dependencies
       run: |
-        pip install playwright
-        playwright install chromium
+        pip install playwright requests # [수정] requests 추가
 
-    - name: Run update script
+    - name: Install Playwright browsers
+      run: playwright install chromium
+
+    - name: Run update_average.py
       run: python update_average.py
+
+    - name: Run deals_crawler.py # [추가] deals_crawler.py 실행 단계
+      run: python deals_crawler.py
 
     - name: Commit and push if changed
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
-        git add average.json
-        git commit -m "자동 갱신: average.json" || echo "no changes"
+        git add average.json deals.json # [수정] deals.json도 추가
+        git commit -m "자동 갱신: average.json, deals.json" || echo "no changes to commit"
         git push
