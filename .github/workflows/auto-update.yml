@@ -31,11 +31,14 @@ jobs:
     - name: Run deals_crawler.py # [추가] deals_crawler.py 실행 단계
       run: python deals_crawler.py
 
+    - name: Run graphcrawler.py
+      run: python graphcrawler.py
+
     - name: Commit and push if changed
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
-        git add average.json deals.json
-        git commit -m "자동 갱신: average.json, deals.json" || echo "no changes to commit"
+        git add average.json deals.json graph.json
+        git commit -m "자동 갱신: average.json, deals.json, graph.json" || echo "no changes to commit"
         git pull --rebase
         git push
