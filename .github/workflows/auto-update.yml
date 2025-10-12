@@ -38,7 +38,7 @@ jobs:
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
-        git add average.json deals.json graph.json
-        git commit -m "자동 갱신: average.json, deals.json, graph.json" || echo "no changes to commit"
+        git add average.json deals.json price_history.json
+        git commit -m "자동 갱신: average.json, deals.json, price_history.json" || echo "no changes to commit"
         git pull --rebase
         git push
