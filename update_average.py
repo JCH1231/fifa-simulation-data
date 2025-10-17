@@ -3,24 +3,34 @@ import urllib.parse
 import json
 import statistics
 import time
-import random  # [추가] import 블록 맨 아래 줄 바로 밑에 추가
+import random
 
 season_some = "114,113,848,846,845,289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
 season_high_enc = "114,113,848,846,845,835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
 
 url_tpl = (
     "https://fconline.nexon.com/datacenter/index?"
-    "strSeason={season_enc}"
+    "n8PlayerGrade1Min=0&n8PlayerGrade1Max=100000000"
     "&n1Confederation=0&n4LeagueId=0"
+    "&strSeason={season_enc}"
     "&strPosition=&strPhysical=&preferredfoot=0"
     "&n1FootAblity=0&n1SkillMove=0&n1InterationalRep=0"
     "&n4BirthMonth=0&n4BirthDay=0&n4TeamId=0&n4NationId=0"
     "&strAbility1=&strAbility2=&strAbility3="
     "&strTrait1=&strTrait2=&strTrait3="
     "&strTraitNon1=&strTraitNon2=&strTraitNon3="
+    "&n1Strong={grade}"
     "&n1Grow=0&n1TeamColor=0"
     "&strSkill1=sprintspeed&strSkill2=acceleration"
     "&strSkill3=strength&strSkill4=stamina"
+    "&strSearchStatus=off"
+    "&strOrderby="
+    "&teamcolorid=0"
+    "&strTeamColorCategory="
+    "&n1History=0"
+    "&n4PlayYear=0"
+    "&IsSummaryPlayer=0"
+    "&strPlayerName=&strTeamName=&strNationName=&strTeamColorName="
     "&n4OvrMin={ovr}&n4OvrMax={ovr}"
     "&n4SalaryMin=4&n4SalaryMax=99"
     "&n1Ability1Min=40&n1Ability1Max=200"
@@ -30,7 +40,6 @@ url_tpl = (
     "&n4HeightMin=140&n4HeightMax=208"
     "&n4WeightMin=40&n4WeightMax=110"
     "&n4AvgPointMin=0&n4AvgPointMax=10"
-    "&n1Strong={grade}"
 )
 
 def format_price(won):
@@ -56,19 +65,25 @@ def parse_price(alt):
     return int(alt.replace(",", ""))
 
 def filter_prices(prices, k=1, low=None, high=None):
-    if not prices or len(prices) < 3:
+    if not prices or len(prices) < 2: # 1개 이하면 필터링 불가
         return prices
-    mean = statistics.mean(prices)
-    stdev = statistics.stdev(prices)
+    try:
+        mean = statistics.mean(prices)
+        stdev = statistics.stdev(prices)
+    except statistics.StatisticsError: # 데이터가 모두 같을 경우 stdev=0 오류 방지
+        return prices
+
+    if stdev == 0: # 모든 가격이 같으면 필터링 불필요
+        return prices
+
     if low is not None and high is not None:
         filtered = [x for x in prices if abs(x - mean) <= k * stdev and low <= x <= high]
     else:
         filtered = [x for x in prices if abs(x - mean) <= k * stdev]
-    if not filtered:
+    if not filtered: # 필터링 결과 아무것도 안 남으면 원본 반환
         return prices
     return filtered
 
-# [추가] format_price 바로 아래 줄에 유틸 함수 3개 추가
 def safe_goto(page, url, attempts=3):
     for i in range(attempts):
         try:
@@ -79,9 +94,9 @@ def safe_goto(page, url, attempts=3):
     return False
 
 def wait_rows_or_reload(page, grade, reload_attempts=2):
-    sel_open = 'div.en_selector_wrap .ability'
-    sel_item = f'div.en_selector_wrap .selector_list a.en_level{grade}'
-    sel_rows = "#divPlayerList > .tr[onclick]"
+    sel_open = 'div.en_wrap.selector_wrap > a.ability'
+    sel_item = f'div.en_wrap.selector_wrap .selector_list a.en_level{grade}'
+    sel_rows = "div#divPlayerList div.tr[onclick]"
     for r in range(reload_attempts + 1):
         try:
             page.wait_for_selector(sel_open, timeout=10000)
@@ -92,8 +107,12 @@ def wait_rows_or_reload(page, grade, reload_attempts=2):
             return True
         except Exception:
             if r < reload_attempts:
-                page.reload(wait_until="domcontentloaded")
-                time.sleep(1.5 * (r + 1))
+                try:
+                    page.reload(wait_until="domcontentloaded")
+                    time.sleep(1.5 * (r + 1))
+                except Exception:
+                    # 재로딩 실패 시 더 이상 시도 의미 없음
+                    break
             else:
                 ts = int(time.time())
                 try:
@@ -106,16 +125,14 @@ def wait_rows_or_reload(page, grade, reload_attempts=2):
                 except Exception:
                     pass
                 return False
+    # for 루프가 break로 끝나거나 reload 시도 중 에러 발생 시 여기로 옴
+    return False
 
 def sleep_jitter(base_ms=1200, spread_ms=800):
     time.sleep((base_ms + random.randint(0, spread_ms)) / 1000.0)
 
 data = {}
 with sync_playwright() as p:
-    # [교체] 아래 두 줄 삭제:
-    # browser = p.chromium.launch(headless=True)
-    # page = browser.new_page()
-    # [추가] 위 두 줄 대신 컨텍스트/페이지 생성으로 교체
     browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
     context = browser.new_context(
         user_agent=(
@@ -129,11 +146,10 @@ with sync_playwright() as p:
     page.set_default_timeout(20000)
     page.set_default_navigation_timeout(30000)
 
-    for ovr in range(90, 137):  # 원하는 오버롤 범위 설정
+    for ovr in range(90, 137):
         season_enc = season_some if ovr <= 129 else season_high_enc
         all_prices = []
 
-        # 특정 구간 1~5강, 그 외 1~8강
         if 90 <= ovr <= 112:
             min_grade, max_grade = 1, 1
         elif 113 <= ovr <= 114:
@@ -150,7 +166,6 @@ with sync_playwright() as p:
         for grade in range(min_grade, max_grade + 1):
             url = url_tpl.format(season_enc=season_enc, ovr=ovr, grade=grade)
 
-            # [추가] 위 block 대신 안전 이동 + 정확 대기 + 재시도
             if not safe_goto(page, url, attempts=3):
                 sleep_jitter()
                 continue
@@ -158,20 +173,27 @@ with sync_playwright() as p:
 
             ok = wait_rows_or_reload(page, grade, reload_attempts=2)
             if not ok:
-                print(f"[warn] OVR {ovr} grade {grade}: no rows after retries")
+                # wait_rows_or_reload 실패 시 경고 출력 (유지)
+                print(f"[warn] OVR {ovr} grade {grade}: wait_rows_or_reload failed.")
                 continue
 
-            # [추가] 보수적 스크롤 한 번
             sleep_jitter(800, 500)
             try:
                 page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             except Exception:
                 pass
 
-            rows = page.query_selector_all("#divPlayerList > .tr[onclick]")
+            sleep_jitter(1000, 600) # 스크롤 후 잠시 대기
+
+            rows_selector = "div#divPlayerList div.tr[onclick]"
+            rows = page.query_selector_all(rows_selector)
+
+            if not rows:
+                continue # 다음 등급으로
 
             for row in rows:
-                cell = row.query_selector(f'.td_ar_bp .span_bp{grade}')
+                cell_selector = f'.td_ar_bp .span_bp{grade}'
+                cell = row.query_selector(cell_selector)
                 if not cell:
                     continue
                 alt = cell.get_attribute('alt')
@@ -179,9 +201,10 @@ with sync_playwright() as p:
                 if price:
                     all_prices.append(price)
 
-        print(f"OVR {ovr} raw prices:", all_prices)
+        # 원래 있던 결과 출력 (유지)
+        print(f"OVR {ovr} raw prices ({len(all_prices)} items):", all_prices)
 
-        # 특정 오버롤 구간에만 가격 범위 필터링 적용
+        # 가격 필터링
         if 111 <= ovr <= 119:
             sorted_prices = sorted(all_prices)
             min80 = sorted_prices[:150]
@@ -209,24 +232,26 @@ with sync_playwright() as p:
         else:
             filtered_prices = filter_prices(all_prices, k=1)
 
-        print(f"OVR {ovr} filtered prices:", filtered_prices)
+        # 원래 있던 결과 출력 (유지)
+        print(f"OVR {ovr} filtered prices ({len(filtered_prices)} items):", filtered_prices)
 
         if filtered_prices:
             avg_price = sum(filtered_prices) // len(filtered_prices)
             data[ovr] = avg_price
-            print(f"{ovr} OVR 전체 평균(이상치 제거): {format_price(avg_price)}")
+            # 원래 있던 결과 출력 (유지)
+            print(f"==> {ovr} OVR 전체 평균(이상치 제거): {format_price(avg_price)}")
         else:
             data[ovr] = None
-            print(f"{ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
+            # 원래 있던 결과 출력 (유지)
+            print(f"==> {ovr} OVR 전체 평균(이상치 제거): 데이터 없음")
 
-        # [추가] OVR 한 사이클 끝나고 지터 대기
         sleep_jitter(1600, 1200)
 
-    # [추가] browser.close() 바로 윗줄에 context.close() 추가
     context.close()
     browser.close()
 
 with open("average.json", "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
 
+# 원래 있던 완료 메시지 (유지)
 print("average.json 저장 완료!")
