@@ -30,6 +30,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 851,
+    "className": "25DP (25 Devoted Player)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25dp.png"
+  },
+  {
     "seasonId": 848,
     "className": "WS (Winning Streak)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/ws.png"
@@ -575,6 +580,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/20klb.png"
   },
   {
+    "seasonId": 517,
+    "className": "25 PL (25 Premium Live)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25pla.png"
+  },
+  {
     "seasonId": 515,
     "className": "24 PL (24 Premium Live)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/24pla.png"
@@ -621,8 +631,13 @@
   },
   {
     "seasonId": 300,
-    "className": "24 LIVE (24 LIVE)",
+    "className": "25 LIVE (25 LIVE)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/live.png"
+  },
+  {
+    "seasonId": 324,
+    "className": "24 LIVE (24 LIVE)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/24.png"
   },
   {
     "seasonId": 323,
