@@ -193,15 +193,15 @@ with sync_playwright() as p:
             filtered_prices = filter_prices(min80, k=1)
         elif 120 <= ovr <= 127:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:20]
+            min10 = sorted_prices[:100]
             filtered_prices = min10
         elif 128 <= ovr <= 129:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:20]
+            min10 = sorted_prices[:50]
             filtered_prices = min10
         elif 130 <= ovr <= 134:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:20]
+            min10 = sorted_prices[:30]
             filtered_prices = min10
         elif ovr == 135:
             sorted_prices = sorted(all_prices)
