@@ -5,8 +5,8 @@ import statistics
 import time
 import random
 
-season_some = "114,113,848,846,845,289,283,284,274,270,839,836,840,829,268,265,828,827,264,835,826,825,811,821,281,256,818,814,252,251,813,802,253,801,290,246,237,291,216,233,231,254,249,100,832,831,844,830,234,834"
-season_high_enc = "114,113,848,846,845,835,811,826,825,844,831,818,827,828,829,836,840,834,283,832"
+season_some = ",239,257,100,101,113,114,111,596,864,863,862,861,852,851,848,850,846,845,840,839,836,270,274,273,272,284,283,289,291,290,801,802,813,814,818,815,821,825,826,827,828,829,268,265,264,858,835,811,281,261,256,252,251,253,249,246,237,231,233,804,276,218,217,216,214,210,207,206,854,855,831,832,807,201,808,866,844,820,856,834,810,234,225,806,293,294,247,518,516,514,512,853,830,805,277,510,"
+season_high_enc = ",239,257,100,101,113,114,111,596,864,863,862,861,852,851,848,850,846,845,840,839,836,270,274,273,272,284,283,289,291,290,801,802,813,814,818,815,821,825,826,827,828,829,268,265,264,858,835,811,281,261,256,252,251,253,249,246,237,231,233,804,276,218,217,216,214,210,207,206,854,855,831,832,807,201,808,866,844,820,856,834,810,234,225,806,293,294,247,518,516,514,512,853,830,805,277,510,"
 
 url_tpl = (
     "https://fconline.nexon.com/datacenter/index?"
@@ -128,7 +128,7 @@ with sync_playwright() as p:
     page.set_default_timeout(20000)
     page.set_default_navigation_timeout(30000)
 
-    for ovr in range(90, 137):
+    for ovr in range(100, 151):
         season_enc = season_some if ovr <= 129 else season_high_enc
         all_prices = []
 
@@ -197,19 +197,19 @@ with sync_playwright() as p:
             filtered_prices = min10
         elif 128 <= ovr <= 129:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:15]
+            min10 = sorted_prices[:20]
             filtered_prices = min10
         elif 130 <= ovr <= 134:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:10]
+            min10 = sorted_prices[:20]
             filtered_prices = min10
         elif ovr == 135:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:5]
+            min10 = sorted_prices[:20]
             filtered_prices = min10
-        elif 136 <= ovr <= 140:
+        elif 136 <= ovr <= 150:
             sorted_prices = sorted(all_prices)
-            min10 = sorted_prices[:15]
+            min10 = sorted_prices[:20]
             filtered_prices = min10
         else:
             filtered_prices = filter_prices(all_prices, k=1)
