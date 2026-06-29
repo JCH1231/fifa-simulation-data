@@ -7,18 +7,15 @@ import re
 # --- 설정값 ---
 BASE_URL = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/"
 OUTPUT_FILENAME = "deals.json"
-ALLOWED_SEASON_CODES = {
-    "100", "113", "114", "848", "850", "846", "845", "840", "839", "836", "829",
-    "828", "827", "826", "825", "821", "818", "814", "813", "802", "290",
-    "801", "291", "289", "283", "284", "274", "835", "811", "834", "831", "268"
-}
 
+# [수정] 최소 순수익 조건: 50조 BP (50,000,000,000,000)
+# 금액을 바꾸고 싶다면 아래 숫자만 수정하세요.
+MIN_PROFIT_BP = 50_000_000_000_000 
 
 # --- 헬퍼 함수 ---
 def http_get(url, **kwargs):
     kwargs.setdefault("timeout", 10)
     return requests.get(url, **kwargs)
-
 
 def get_real_gauge_percent(spid, grade, material_ovrs, gauge_table):
     try:
@@ -26,7 +23,6 @@ def get_real_gauge_percent(spid, grade, material_ovrs, gauge_table):
         return float(gauge_table[grade_str][ovr_target][ovr_material])
     except (KeyError, IndexError, TypeError):
         return 0.0
-
 
 def get_cheapest_material_cost(target_ovr, stage, average_prices, gauge_table):
     candidates = []
@@ -79,9 +75,6 @@ def get_cheapest_material_cost(target_ovr, stage, average_prices, gauge_table):
 
     return best_cost
 
-
-# --- [함수 전체 수정] ---
-# 강화 시뮬레이터의 복구 비용 계산 로직을 반영한 새로운 함수
 def estimate_total_cost(base_ovr, target_grade, average_prices, gauge_table, cost_cache):
     SUCCESS_PROBS = [1.00, 0.81, 0.64, 0.50, 0.26, 0.15, 0.07]
     RECOVERY_PROBS = {
@@ -158,8 +151,10 @@ def main():
     print("Data fetch complete.")
 
     player_map = {p['spid']: p for p in all_players}
-    candidate_spids = [p['spid'] for p in all_players if str(p.get('spid', ''))[:3] in ALLOWED_SEASON_CODES]
-    print(f"Processing {len(candidate_spids)} players from allowed seasons...")
+    
+    # [수정] ALLOWED_SEASON_CODES 필터링 삭제 -> 모든 선수 검색
+    candidate_spids = [p['spid'] for p in all_players if 'spid' in p]
+    print(f"Processing {len(candidate_spids)} players from ALL seasons...")
 
     material_cost_cache = {}
 
@@ -191,7 +186,8 @@ def main():
                 total_investment = material_cost_only + price_1
                 profit = price_target - total_investment
 
-                if profit > 0:
+                # [수정] 순수익이 MIN_PROFIT_BP(50조) 이상인 경우에만 저장
+                if profit >= MIN_PROFIT_BP:
                     profit_margin = (profit / total_investment) * 100 if total_investment > 0 else 0
                     deal_data = {
                         'spid': spid,
@@ -200,16 +196,15 @@ def main():
                         'profit_margin': profit_margin,
                         'total_investment': total_investment,
                         'price_1': price_1,
-                        'all_prices': all_prices,  # [추가] 계산에 사용된 1~13강 가격 정보 저장
+                        'all_prices': all_prices,
                     }
                     deals_to_save.append(deal_data)
 
     with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
         json.dump(deals_to_save, f)
 
-    print(f"Update complete. Saved {len(deals_to_save)} profitable deals to {OUTPUT_FILENAME}.")
+    print(f"Update complete. Saved {len(deals_to_save)} profitable deals (Profit >= 50조) to {OUTPUT_FILENAME}.")
 
 
 if __name__ == "__main__":
     main()
-
