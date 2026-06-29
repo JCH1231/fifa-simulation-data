@@ -134,14 +134,14 @@ with sync_playwright() as p:
 
         if 90 <= ovr <= 112:
             min_grade, max_grade = 1, 1
-        elif 113 <= ovr <= 114:
-            min_grade, max_grade = 2, 7
-        elif 115 <= ovr <= 119:
+        elif 113 <= ovr <= 119:
             min_grade, max_grade = 4, 7
-        elif 120 <= ovr <= 125:
-            min_grade, max_grade = 6, 8
-        elif 126 <= ovr <= 134:
-            min_grade, max_grade = 7, 8
+        elif 120 <= ovr <= 124:
+            min_grade, max_grade = 2, 8
+        elif 125 <= ovr <= 130:
+            min_grade, max_grade = 4, 8    
+        elif 131 <= ovr <= 151:
+            min_grade, max_grade = 6, 10
         else:
             min_grade, max_grade = 9, 9
 
