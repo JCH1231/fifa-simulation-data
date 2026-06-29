@@ -30,6 +30,36 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 596,
+    "className": "SH (Step Higher)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/sh.png"
+  },
+  {
+    "seasonId": 864,
+    "className": "TK (Team Korea)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/tk.png"
+  },
+  {
+    "seasonId": 863,
+    "className": "PTG (Path to Glory)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/ptg.png"
+  },
+  {
+    "seasonId": 862,
+    "className": "KHD (Korea Heroes Debut)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/khd.png"
+  },
+  {
+    "seasonId": 861,
+    "className": "WG (Warriors of Glory)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/wg.png"
+  },
+  {
+    "seasonId": 852,
+    "className": "FAC (Football Association Champions)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/fac.png"
+  },
+  {
     "seasonId": 851,
     "className": "25DP (25 Devoted Player)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25dp.png"
@@ -195,6 +225,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/fa.png"
   },
   {
+    "seasonId": 858,
+    "className": "26HR (26 Heroes)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26hr.png"
+  },
+  {
     "seasonId": 835,
     "className": "25HR (25 Heroes)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25hr.png"
@@ -345,6 +380,16 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/nhd.png"
   },
   {
+    "seasonId": 854,
+    "className": "26 TOTY (26 Team Of The Year)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26toty.png"
+  },
+  {
+    "seasonId": 855,
+    "className": "26 TOTY-N (26 Team Of The Nominated)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26totn.png"
+  },
+  {
     "seasonId": 831,
     "className": "25 TOTY (25 Team Of The Year)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25toty.png"
@@ -415,6 +460,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/18toty.png"
   },
   {
+    "seasonId": 866,
+    "className": "26 TOTS (26 Team Of The Season)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26tots.png"
+  },
+  {
     "seasonId": 844,
     "className": "25 TOTS (25 Team Of The Season)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25tots.png"
@@ -448,6 +498,11 @@
     "seasonId": 215,
     "className": "19 TOTS (19 Team Of The Season)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/19tots.png"
+  },
+  {
+    "seasonId": 856,
+    "className": "25 UCL (25 UEFA Champions League)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25ucl.png"
   },
   {
     "seasonId": 834,
@@ -525,6 +580,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/2012kh.png"
   },
   {
+    "seasonId": 518,
+    "className": "26KLeague (26KLeague)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26kl.png"
+  },
+  {
     "seasonId": 516,
     "className": "25KLeague (25KLeague)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25kl.png"
@@ -553,6 +613,11 @@
     "seasonId": 504,
     "className": "20KLeague (20KLeague)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/20kl.png"
+  },
+  {
+    "seasonId": 853,
+    "className": "25KB (25 K-League Best)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25kb.png"
   },
   {
     "seasonId": 830,
