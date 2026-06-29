@@ -5,7 +5,7 @@ import re
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- 설정 ---
 EXCLUDED_SEASON_CODES = {
@@ -118,19 +118,17 @@ def parse_and_process_player(player):
 def main():
     print("선수 목록(all_players.json)을 불러옵니다...")
     try:
-        # all_players.json 파일이 crawler.py와 같은 위치의 'json' 폴더 안에 있다고 가정합니다.
         json_dir = "json"
         if not os.path.exists(json_dir):
             os.makedirs(json_dir)
 
         local_json_path = os.path.join(json_dir, "all_players.json")
 
-        # 로컬 파일이 없으면 다운로드
         if not os.path.exists(local_json_path):
             print("로컬 all_players.json 파일이 없어 다운로드합니다...")
             remote_url = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/all_players.json"
             resp = http_get(remote_url)
-            resp.raise_for_status()  # 오류 시 예외 발생
+            resp.raise_for_status()
             with open(local_json_path, 'w', encoding='utf-8') as f:
                 json.dump(resp.json(), f, ensure_ascii=False)
             print("다운로드 완료.")
@@ -163,15 +161,28 @@ def main():
 
             if processed_count % 100 == 0 or processed_count == total_count:
                 elapsed_time = time.time() - start_time
-                print(
-                    f"진행 상황: {processed_count}/{total_count} ({processed_count / total_count:.1%}) | 소요 시간: {elapsed_time:.1f}초")
+                print(f"진행 상황: {processed_count}/{total_count} ({processed_count / total_count:.1%}) | 소요 시간: {elapsed_time:.1f}초")
 
+    # [수정 완료] 30일치 데이터 필터링 및 저장 (중복 저장 코드 삭제)
+    print(f"\n데이터 최적화 시작: 최근 30일치 데이터만 보존합니다.")
+    processed_results = {}
+    
+    # 30일 전 타임스탬프 계산 (밀리초 단위)
+    # ※ 코드 맨 위 import에 from datetime import datetime, timedelta 가 있는지 확인하세요!
+    limit_date = datetime.now() - timedelta(days=30)
+    limit_ts = int(limit_date.timestamp() * 1000)
+
+    for spid, data in all_results.items():
+        recent_prices = [p for p in data['prices'] if p['time'] >= limit_ts]
+        if recent_prices:
+            processed_results[spid] = {"name": data['name'], "prices": recent_prices}
+    
     output_filename = "price_history.json"
     with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, ensure_ascii=False)
+        json.dump(processed_results, f, ensure_ascii=False)
 
     end_time = time.time()
-    print(f"\n완료! 총 {len(all_results)}명의 선수 정보를 {output_filename} 파일에 저장했습니다.")
+    print(f"\n완료! 총 {len(processed_results)}명의 선수 정보를 {output_filename} 파일에 저장했습니다.")
     print(f"총 소요 시간: {end_time - start_time:.1f}초")
 
 
