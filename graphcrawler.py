@@ -16,7 +16,7 @@ EXCLUDED_SEASON_CODES = {
     "219", "238", "262", "276", "804", "236", "233", "231", "237", "246", "249", "253", "251", "256", "252",
     "254", "261", "281", "264", "265", "270", "273", "272", "110", "849", "815"
 }
-REQUEST_TIMEOUT = 5
+REQUEST_TIMEOUT = 30
 session = requests.Session()
 from requests.adapters import HTTPAdapter
 
