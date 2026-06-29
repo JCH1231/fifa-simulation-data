@@ -94,16 +94,10 @@ def safe_goto(page, url, attempts=3):
     return False
 
 def wait_rows_or_reload(page, grade, reload_attempts=2):
-    sel_open = 'div.en_wrap.selector_wrap > a.ability'
-    sel_item = f'div.en_wrap.selector_wrap .selector_list a.en_level{grade}'
-    sel_rows = "div#divPlayerList div.tr[onclick]"
+    sel_rows = "div.tr .td_ar_bp"
     for r in range(reload_attempts + 1):
         try:
-            page.wait_for_selector(sel_open, timeout=10000)
-            page.click(sel_open)
-            page.wait_for_selector(sel_item, timeout=10000)
-            page.click(sel_item)
-            page.wait_for_selector(sel_rows, timeout=15000)
+            page.wait_for_selector(sel_rows, timeout=10000)
             return True
         except Exception:
             if r < reload_attempts:
@@ -111,21 +105,9 @@ def wait_rows_or_reload(page, grade, reload_attempts=2):
                     page.reload(wait_until="domcontentloaded")
                     time.sleep(1.5 * (r + 1))
                 except Exception:
-                    # 재로딩 실패 시 더 이상 시도 의미 없음
                     break
             else:
-                ts = int(time.time())
-                try:
-                    page.screenshot(path=f"debug_{ts}.png", full_page=True)
-                except Exception:
-                    pass
-                try:
-                    with open(f"debug_{ts}.html", "w", encoding="utf-8") as fh:
-                        fh.write(page.content())
-                except Exception:
-                    pass
                 return False
-    # for 루프가 break로 끝나거나 reload 시도 중 에러 발생 시 여기로 옴
     return False
 
 def sleep_jitter(base_ms=1200, spread_ms=800):
@@ -185,7 +167,7 @@ with sync_playwright() as p:
 
             sleep_jitter(1000, 600) # 스크롤 후 잠시 대기
 
-            rows_selector = "div#divPlayerList div.tr[onclick]"
+            rows_selector = "div.tr"
             rows = page.query_selector_all(rows_selector)
 
             if not rows:
