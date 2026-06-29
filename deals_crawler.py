@@ -8,9 +8,9 @@ import re
 BASE_URL = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/"
 OUTPUT_FILENAME = "deals.json"
 
-# [수정] 최소 순수익 조건: 50조 BP (50,000,000,000,000)
-# 금액을 바꾸고 싶다면 아래 숫자만 수정하세요.
-MIN_PROFIT_BP = 50_000_000_000_000 
+# [수정] 조건 설정
+MIN_PROFIT_BP = 50_000_000_000_000  # 최소 순수익 50조
+MIN_OVR = 100                       # 최소 오버롤 (이 숫자 미만은 검색 안 함)
 
 # --- 헬퍼 함수 ---
 def http_get(url, **kwargs):
@@ -152,9 +152,19 @@ def main():
 
     player_map = {p['spid']: p for p in all_players}
     
-    # [수정] ALLOWED_SEASON_CODES 필터링 삭제 -> 모든 선수 검색
-    candidate_spids = [p['spid'] for p in all_players if 'spid' in p]
-    print(f"Processing {len(candidate_spids)} players from ALL seasons...")
+    # [수정] 오버롤(OVR)이 MIN_OVR(100) 이상인 선수만 걸러냄
+    candidate_spids = []
+    for p in all_players:
+        if 'spid' in p:
+            try:
+                # overall 값이 없는 경우를 대비해 0으로 처리
+                ovr = int(p.get('overall', 0)) 
+                if ovr >= MIN_OVR:
+                    candidate_spids.append(p['spid'])
+            except (ValueError, TypeError):
+                pass
+
+    print(f"Processing {len(candidate_spids)} players (OVR {MIN_OVR} 이상)...")
 
     material_cost_cache = {}
 
@@ -186,7 +196,7 @@ def main():
                 total_investment = material_cost_only + price_1
                 profit = price_target - total_investment
 
-                # [수정] 순수익이 MIN_PROFIT_BP(50조) 이상인 경우에만 저장
+                # [수지 타산 확인] 50조 이상만 저장
                 if profit >= MIN_PROFIT_BP:
                     profit_margin = (profit / total_investment) * 100 if total_investment > 0 else 0
                     deal_data = {
@@ -203,7 +213,7 @@ def main():
     with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
         json.dump(deals_to_save, f)
 
-    print(f"Update complete. Saved {len(deals_to_save)} profitable deals (Profit >= 50조) to {OUTPUT_FILENAME}.")
+    print(f"Update complete. Saved {len(deals_to_save)} profitable deals (OVR >={MIN_OVR}, Profit >={MIN_PROFIT_BP}) to {OUTPUT_FILENAME}.")
 
 
 if __name__ == "__main__":
