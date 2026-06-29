@@ -10,7 +10,7 @@ season_high_enc = ",100,101,113,114,111,596,864,863,862,861,852,851,848,850,846,
 
 url_tpl = (
     "https://fconline.nexon.com/datacenter/index?"
-    "n8PlayerGrade1Min=0&n8PlayerGrade1Max=100000000"
+    "n8PlayerGrade1Min=0&n8PlayerGrade1Max=10000000000"
     "&n1Confederation=0&n4LeagueId=0"
     "&strSeason={season_enc}"
     "&strPosition=&strPhysical=&preferredfoot=0"
@@ -48,6 +48,7 @@ def format_price(won):
     cho = won // 10**12
     eo = (won % 10**12) // 10**8
     man = (won % 10**8) // 10**4
+    gyeong = (won % 10**4) // 1 
 
     parts = []
     if cho > 0:
@@ -56,6 +57,8 @@ def format_price(won):
         parts.append(f"{eo}억")
     if man > 0:
         parts.append(f"{man}만")
+    if gyeong > 0:
+        parts.append(f"{gyeong}경")
 
     return " ".join(parts) if parts else "0"
 
@@ -128,7 +131,7 @@ with sync_playwright() as p:
     page.set_default_timeout(20000)
     page.set_default_navigation_timeout(30000)
 
-    for ovr in range(100, 151):
+    for ovr in range(100, 145):
         season_enc = season_some if ovr <= 129 else season_high_enc
         all_prices = []
 
@@ -140,7 +143,7 @@ with sync_playwright() as p:
             min_grade, max_grade = 2, 8
         elif 125 <= ovr <= 130:
             min_grade, max_grade = 4, 8    
-        elif 131 <= ovr <= 151:
+        elif 131 <= ovr <= 145:
             min_grade, max_grade = 6, 10
         else:
             min_grade, max_grade = 9, 9
@@ -153,7 +156,7 @@ with sync_playwright() as p:
                 continue
             sleep_jitter(1400, 900)
 
-            ok = wait_rows_or_reload(page, grade, reload_attempts=2)
+            ok = wait_rows_or_reload(page, grade, reload_attempts=0)
             if not ok:
                 # wait_rows_or_reload 실패 시 경고 출력 (유지)
                 print(f"[warn] OVR {ovr} grade {grade}: wait_rows_or_reload failed.")
