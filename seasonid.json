@@ -30,6 +30,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 867,
+    "className": "SPT (Spartan)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/spt.png"
+  },
+  {
     "seasonId": 596,
     "className": "SH (Step Higher)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/sh.png"
@@ -68,6 +73,11 @@
     "seasonId": 848,
     "className": "WS (Winning Streak)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/ws.png"
+  },
+  {
+    "seasonId": 868,
+    "className": "26FSL (26 FCO Superchampions League)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26fsl.png"
   },
   {
     "seasonId": 850,
@@ -743,5 +753,10 @@
     "seasonId": 812,
     "className": "LKI (LKI)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/lki.png"
+  },
+  {
+    "seasonId": 879,
+    "className": "LKI2 (LKI2)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/lki2.png"
   }
 ]
