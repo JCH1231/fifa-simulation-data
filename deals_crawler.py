@@ -9,7 +9,7 @@ BASE_URL = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/
 OUTPUT_FILENAME = "deals.json"
 
 # [수정] 조건 설정
-MIN_PROFIT_BP = 50_000_000_000_000  # 최소 순수익 50조
+MIN_PROFIT_BP = 1_000_000  # 최소 순수익
 MIN_OVR = 100                       # 최소 오버롤 (이 숫자 미만은 검색 안 함)
 
 # --- 헬퍼 함수 ---
