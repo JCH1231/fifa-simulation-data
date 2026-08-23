@@ -48,8 +48,18 @@ jobs:
 
       # 예전에는 사람이 팀컬러 목록 페이지를 손으로 저장해(!DOCTYPE html.txt) 그 파일을
       # 읽어야 했다. 이제 목록·단계별 효과·소속 선수를 전부 온라인에서 받는다(약 1분).
+      #
+      # 크롤러는 수집이 부실하면(선수 목록이 빈 특성 팀컬러가 많거나 매핑 수가 급감) 0이 아닌
+      # 코드로 끝내고 파일을 아예 안 쓴다. 그때도 게이지 표는 커밋돼야 하므로 여기서 실패를
+      # 흡수하고, 대신 잡을 노란색으로 남긴다.
       - name: 팀컬러 크롤링
+        id: teamcolors
+        continue-on-error: true
         run: python teamcolors_crawler.py --workers 16
+
+      - name: 팀컬러 실패 경고
+        if: steps.teamcolors.outcome == 'failure'
+        run: echo "::warning::팀컬러 수집이 불완전해 team_colors.json 을 갱신하지 않았습니다."
 
       - name: 변경분 커밋
         run: |

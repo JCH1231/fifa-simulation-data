@@ -133,23 +133,65 @@ def fetch_levels(tid):
     return sorted(levels, key=lambda x: x["level"]) or None
 
 
-def fetch_players(tid):
-    """특성 팀컬러의 소속 선수. 포지션 파라미터를 빼면 한 번에 전부 온다."""
-    r = _get(f"{BASE}/DataCenter/TeamColorPlayerList?teamcolorid={tid}", headers=XHR)
+# TeamColorPlayerList 는 한 번에 최대 100명만 돌려준다(실측: 표본 120개 중 103개가 정확히
+# 100명, 101명 이상은 하나도 없었다). 페이징 파라미터도 없다(n4PageNo/page/offset/limit …
+# 전부 무시되고 같은 100명이 온다). 포지션으로 나눠도 한 포지션이 100을 넘으면 또 잘린다.
+# 유일하게 먹히는 추가 필터가 OVR 범위라서, 포지션별로 받되 100에 닿으면 OVR 구간을
+# 반씩 쪼개 재귀적으로 내려간다.
+_PLAYER_PAGE_CAP = 100
+POSITION_IDS = (24, 25, 26, 20, 21, 22, 27, 23, 13, 14, 15, 17, 18, 19, 16, 12,
+                9, 10, 11, 1, 4, 5, 6, 3, 7, 2, 8, 0)
+
+
+def _player_bucket(tid, pos=None, lo=None, hi=None):
+    """한 조각을 받아 {(pid, spid)} 로 돌려준다. 조회 실패는 None (빈 결과와 구분)."""
+    url = f"{BASE}/DataCenter/TeamColorPlayerList?teamcolorid={tid}"
+    if pos is not None:
+        url += f"&strPosition=%2C{pos}%2C"
+    if lo is not None:
+        url += f"&n4OvrMin={lo}&n4OvrMax={hi}"
+    r = _get(url, headers=XHR)
     if r is None:
-        return []
+        return None
     try:
-        players = r.json().get("players", [])
+        return {(p.get("pid"), p.get("spid")) for p in r.json().get("players", [])
+                if p.get("pid") is not None}
     except Exception:
-        return []
-    seen, out = set(), []
-    for p in players:
-        key = (p.get("pid"), p.get("spid"))
-        if key[0] is None or key in seen:
-            continue
-        seen.add(key)
-        out.append({"pid": p.get("pid"), "spid": p.get("spid")})
-    return out
+        return None
+
+
+def _collect_position(tid, pos, lo=1, hi=200, depth=0):
+    """한 포지션을 OVR 이분 분할로 훑는다(100에 닿는 동안 계속 쪼갬)."""
+    r = _player_bucket(tid, pos, lo, hi)
+    if r is None:
+        return set()
+    if len(r) < _PLAYER_PAGE_CAP or lo >= hi or depth >= 8:
+        return r
+    mid = (lo + hi) // 2
+    return (_collect_position(tid, pos, lo, mid, depth + 1)
+            | _collect_position(tid, pos, mid + 1, hi, depth + 1))
+
+
+def fetch_players(tid):
+    """특성 팀컬러의 소속 선수 전체. 실패하면 None(빈 목록과 구분).
+
+    대부분의 팀컬러는 100명 미만이라 요청 1번으로 끝난다. 100에 닿은 것만 포지션 x OVR
+    로 쪼개서 다시 훑는다(실측: 19-20 FC 바르셀로나는 1회 요청이면 100명으로 잘리지만
+    이 방식으로는 507명을 다 받는다 — 포지션 25분할만 하던 예전 방식의 497명보다도 많다).
+    """
+    first = _player_bucket(tid)
+    if first is None:
+        return None
+    if len(first) < _PLAYER_PAGE_CAP:
+        return [{"pid": pid, "spid": spid} for pid, spid in first]
+
+    out = set()
+    for pos in POSITION_IDS:
+        out |= _collect_position(tid, pos)
+    if not out:
+        # 쪼개서 하나도 못 받았다면 조회가 통째로 실패한 것으로 본다
+        return None
+    return [{"pid": pid, "spid": spid} for pid, spid in out]
 
 
 def main():
@@ -177,10 +219,18 @@ def main():
     print(f"  {got_levels}/{len(ids)}개 성공")
 
     rel = [t for t in ids if t in relation_ids]
-    print(f"\n특성 팀컬러 선수 목록 수집 ({len(rel)}개, 팀컬러당 1회 요청)...")
+    print(f"\n특성 팀컬러 선수 목록 수집 ({len(rel)}개)...")
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         players_list = list(ex.map(fetch_players, rel))
     players_map = dict(zip(rel, players_list))
+    failed = [t for t in rel if players_map.get(t) is None]
+    if failed:
+        print(f"  조회 실패 {len(failed)}개 — 한 번 더 시도")
+        with ThreadPoolExecutor(max_workers=max(4, args.workers // 2)) as ex:
+            for t, r in zip(failed, ex.map(fetch_players, failed)):
+                players_map[t] = r
+        failed = [t for t in rel if players_map.get(t) is None]
+        print(f"  재시도 후 실패 {len(failed)}개")
 
     data = []
     for tid in ids:
@@ -193,12 +243,15 @@ def main():
             "crest": all_items[tid]["crest"],
             "type": "특성 팀컬러" if tid in relation_ids else "소속 팀컬러",
             "levels": lv,
-            "players": players_map.get(tid, []),
+            "players": players_map.get(tid) or [],
         })
 
     el = time.perf_counter() - t0
+    rel_data = [d for d in data if d["type"] == "특성 팀컬러"]
+    with_players = sum(1 for d in rel_data if d["players"])
     print(f"\n수집 완료 {el:.0f}초 — 팀컬러 {len(data)}개")
-    print(f"  선수 목록 보유: {sum(1 for d in data if d['players'])}개")
+    print(f"  특성 팀컬러 {len(rel_data)}개 중 선수 목록 보유 {with_players}개 "
+          f"(총 매핑 {sum(len(d['players']) for d in data)}건)")
 
     old = []
     if os.path.exists(OUT):
@@ -225,6 +278,23 @@ def main():
     if len(data) < 100:
         print(f"\n[중단] 수집 결과가 {len(data)}개뿐이라 기존 파일을 덮어쓰지 않습니다.")
         return 1
+
+    # 선수 목록이 통째로 비면 그 특성 팀컬러는 앱에서 조용히 발동하지 않는다. 실제로
+    # 한 번은 500개 중 190개가 빈 채로 커밋돼서 팀컬러가 사라져 보였다(조회 실패를
+    # 빈 목록으로 처리했던 탓). 실패가 많으면 저장하지 않고 기존 파일을 지킨다.
+    empty_ratio = 1 - (with_players / max(len(rel_data), 1))
+    if empty_ratio > 0.1:
+        print(f"\n[중단] 특성 팀컬러 {len(rel_data)}개 중 {len(rel_data) - with_players}개가 "
+              f"선수 목록 없음({empty_ratio:.0%}). 조회가 불안정한 것으로 보고 "
+              f"기존 파일을 덮어쓰지 않습니다.")
+        return 1
+    if old:
+        old_total = sum(len(d.get("players") or []) for d in old)
+        new_total = sum(len(d["players"]) for d in data)
+        if old_total and new_total < old_total * 0.7:
+            print(f"\n[중단] 선수 매핑이 {old_total} -> {new_total} 로 크게 줄었습니다. "
+                  f"기존 파일을 덮어쓰지 않습니다.")
+            return 1
 
     tmp = OUT + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
