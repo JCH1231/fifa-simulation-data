@@ -118,20 +118,25 @@ def parse_and_process_player(player):
 def main():
     print("선수 목록(all_players.json)을 불러옵니다...")
     try:
-        json_dir = "json"
-        if not os.path.exists(json_dir):
-            os.makedirs(json_dir)
+        # 저장소에 체크아웃된 파일을 먼저 본다. 예전에는 json/ 하위만 보고 없으면 무조건
+        # 41MB 를 내려받았는데, CI 에는 json/ 이 없으니 매 실행(하루 12번)마다 헛으로 받았다.
+        here = os.path.dirname(os.path.abspath(__file__))
+        candidates = [os.path.join(here, "all_players.json"),
+                      os.path.join(here, "json", "all_players.json")]
+        local_json_path = next((p for p in candidates if os.path.exists(p)), None)
 
-        local_json_path = os.path.join(json_dir, "all_players.json")
-
-        if not os.path.exists(local_json_path):
+        if local_json_path is None:
+            local_json_path = candidates[1]
+            os.makedirs(os.path.dirname(local_json_path), exist_ok=True)
             print("로컬 all_players.json 파일이 없어 다운로드합니다...")
             remote_url = "https://raw.githubusercontent.com/JCH1231/fifa-simulation-data/main/all_players.json"
-            resp = http_get(remote_url)
+            resp = http_get(remote_url, timeout=120)
             resp.raise_for_status()
             with open(local_json_path, 'w', encoding='utf-8') as f:
                 json.dump(resp.json(), f, ensure_ascii=False)
             print("다운로드 완료.")
+        else:
+            print(f"로컬 파일 사용: {local_json_path}")
 
         with open(local_json_path, "r", encoding="utf-8") as f:
             all_players = json.load(f)

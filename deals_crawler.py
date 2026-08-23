@@ -17,6 +17,26 @@ def http_get(url, **kwargs):
     kwargs.setdefault("timeout", 10)
     return requests.get(url, **kwargs)
 
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_data(name):
+    """입력 JSON 로드 — 옆에 있는 파일을 먼저 쓰고, 없을 때만 깃허브에서 받는다.
+
+    예전에는 무조건 raw.githubusercontent 에서 받았다. 그러면 워크플로에서
+    update_average.py 가 방금 만든 average.json 을 놔두고 '직전 커밋의' 것을 내려받게 되어,
+    deals 가 항상 한 사이클 낡은 평균가로 계산된다. 덤으로 매 실행마다 all_players.json
+    41MB 를 헛으로 받는다(이미 체크아웃되어 있는데도).
+    """
+    local = os.path.join(_HERE, name)
+    if os.path.exists(local):
+        print(f"  {name}: 로컬 파일 사용")
+        with open(local, encoding="utf-8") as f:
+            return json.load(f)
+    print(f"  {name}: 로컬에 없어 깃허브에서 받음")
+    return http_get(BASE_URL + name, timeout=120).json()
+
 def get_real_gauge_percent(spid, grade, material_ovrs, gauge_table):
     try:
         grade_str, ovr_target, ovr_material = str(grade), str(material_ovrs[0]), str(material_ovrs[1])
@@ -145,9 +165,9 @@ def _fetch_all_grade_prices(spid):
 
 def main():
     print("Fetching initial data (players, prices, gauge)...")
-    all_players = http_get(BASE_URL + "all_players.json").json()
-    average_prices = http_get(BASE_URL + "average.json").json()
-    gauge_table = http_get(BASE_URL + "gauge_table_60_140.json").json()
+    all_players = load_data("all_players.json")
+    average_prices = load_data("average.json")
+    gauge_table = load_data("gauge_table_60_140.json")
     print("Data fetch complete.")
 
     player_map = {p['spid']: p for p in all_players}
