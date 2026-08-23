@@ -50,6 +50,11 @@ jobs:
         # 러너에서는 지연이 커서 동시 요청을 조금 더 준다(이 작업은 지연이 곧 처리량).
         run: python update_players.py --workers 24 ${{ inputs.skip_ovr && '--skip-ovr' || '' }}
 
+      # 신규 특성이 나올 때마다 사람이 코드에 이름/번호를 손으로 적어 넣던 걸 대신한다.
+      # 선수 몇백 명만 훑으면 현재 게임의 특성이 사실상 전부 모인다(실측 900명 -> 46종).
+      - name: 특성 목록 갱신 (trait_map.json)
+        run: python harvest_traits.py --sample 900 --workers 20
+
       - name: 변경분 커밋
         run: |
           git config --local user.email "actions@github.com"
@@ -58,6 +63,7 @@ jobs:
           # OVR 변경이 없으면 로그 파일이 아예 안 생긴다. 없는 경로를 git add 하면
           # "pathspec did not match" 로 스텝 전체가 실패하므로 있을 때만 넣는다.
           [ -f ovr_change_log.txt ] && git add ovr_change_log.txt || true
+          [ -f trait_map.json ] && git add trait_map.json || true
           if git diff --staged --quiet; then
             echo "변경 없음"
           else

@@ -51,6 +51,8 @@ API_TOKEN = os.environ.get("NEXON_API_TOKEN", "").strip() or (
 # 9만 건을 BeautifulSoup 으로 전부 파싱하면 그게 곧 병목이다. OVR 재확인은 한 조각만 필요하므로
 # 정규식으로 집고, 신규 선수(수백 명)만 BeautifulSoup 으로 꼼꼼히 파싱한다.
 _RE_OVR = re.compile(r'class="[^"]*\bovr\b[^"]*\bvalue\b[^"]*"[^>]*>\s*(\d+)')
+# <img src=".../traits/trait_icon_59.png" alt="커맨더" />
+_RE_TRAIT = re.compile(r'trait_icon_(\d+)\.png"')
 
 _tls = threading.local()
 
@@ -86,12 +88,31 @@ def _ability_html(spid, retries=3):
     return None
 
 
-def fetch_ovr(spid):
+def fetch_ovr_and_traits(spid):
+    """현재 OVR과 보유 특성 ID 목록을 한 번의 조회로 가져온다 → (ovr, [trait_id, ...]).
+
+    특성을 이름 문자열이 아니라 ID로 저장하는 이유:
+      · 예전에는 `skills` 에 "특성 파워 헤더 중거리 슛 선호" 같은 한 덩어리 문자열만 넣고,
+        앱이 그 안에 특성 이름이 들어있는지 부분 문자열로 찾았다. 이름을 한 글자라도 다르게
+        적어두면 영영 안 잡힌다(실제로 "GK 능숙한 펀치" vs 실제 "GK 능숙한 펀칭" 등 3개가
+        그렇게 죽어 있었다).
+      · 게다가 이 skills 는 신규 선수를 처음 긁을 때만 채워지고 그 뒤로 갱신되지 않아,
+        신규 특성이 추가돼도 반영이 안 됐다(실측 표본의 72%가 신규 특성 누락).
+    OVR 갱신을 위해 어차피 받아오는 바로 그 페이지에서 같이 뽑으므로 추가 요청이 0이다.
+    """
     html = _ability_html(spid)
     if not html:
-        return None
+        return None, None
     m = _RE_OVR.search(html)
-    return int(m.group(1)) if m else None
+    ovr = int(m.group(1)) if m else None
+    # 등장 순서를 유지하면서 중복만 제거(같은 아이콘이 여러 번 나올 수 있다)
+    seen, trait_ids = set(), []
+    for t in _RE_TRAIT.findall(html):
+        tid = int(t)
+        if tid not in seen:
+            seen.add(tid)
+            trait_ids.append(tid)
+    return ovr, trait_ids
 
 
 # ───────── 신규 선수 상세 파싱 (player_crawler.py 의 추출 로직을 그대로 옮김) ─────────
@@ -241,6 +262,12 @@ def fetch_new_player(spid, name, _retry=True):
     lf, rf = _foot(soup)
     h, w, body = _body(soup)
     tc, rel = _teamcolors(soup)
+    seen, trait_ids = set(), []
+    for t in _RE_TRAIT.findall(html):
+        tid = int(t)
+        if tid not in seen:
+            seen.add(tid)
+            trait_ids.append(tid)
     return {
         "spid": spid, "name": name,
         "pay": _text(soup, ".pay span"),
@@ -250,7 +277,10 @@ def fetch_new_player(spid, name, _retry=True):
         "foot": f"L{lf} R{rf}" if (lf is not None and rf is not None) else None,
         "left_foot": lf, "right_foot": rf,
         "height_cm": h, "weight_kg": w, "body_type": body,
-        "skills": _skills(soup), "teamcolors": tc, "relation_teamcolors": rel,
+        # skills(사람이 읽는 문자열)는 기존 화면 호환용으로 계속 넣고,
+        # trait_ids(정확한 ID)를 함께 저장해 앱이 이쪽을 쓰게 한다.
+        "skills": _skills(soup), "trait_ids": trait_ids,
+        "teamcolors": tc, "relation_teamcolors": rel,
     }
 
 
@@ -335,22 +365,29 @@ def main():
     elif not new_items:
         print("\n신규 선수 없음")
 
-    # ── 기존 선수 OVR 재확인 (라이브 부스트 반영) ──
+    # ── 기존 선수 OVR + 특성 재확인 (라이브 부스트 / 신규 특성 반영) ──
     changes = []
+    trait_changes = 0
     if not args.skip_ovr:
         live_ids = [it["id"] for it in spid_meta if it["id"] in by_spid]
-        print(f"\n현역 선수 {len(live_ids)}명 OVR 재확인")
-        got, fails = run_pool(fetch_ovr, live_ids, args.workers, "OVR")
-        for spid, ovr in got.items():
+        print(f"\n현역 선수 {len(live_ids)}명 OVR·특성 재확인")
+        got, fails = run_pool(fetch_ovr_and_traits, live_ids, args.workers, "OVR")
+        for spid, (ovr, trait_ids) in got.items():
             p = by_spid[spid]
-            try:
-                old = int(p.get("overall"))
-            except (TypeError, ValueError):
-                old = None
-            if old != ovr:
-                changes.append((spid, p.get("name"), old, ovr))
-                p["overall"] = str(ovr)
-        print(f"  OVR 변경 {len(changes)}명 (조회 실패 {fails})")
+            if ovr is not None:
+                try:
+                    old = int(p.get("overall"))
+                except (TypeError, ValueError):
+                    old = None
+                if old != ovr:
+                    changes.append((spid, p.get("name"), old, ovr))
+                    p["overall"] = str(ovr)
+            # 특성은 게임 패치로 새로 붙거나 빠질 수 있어 항상 최신으로 덮어쓴다.
+            # 조회는 됐는데 특성이 하나도 없는 건 정상(특성 없는 선수도 있다).
+            if trait_ids is not None and p.get("trait_ids") != trait_ids:
+                p["trait_ids"] = trait_ids
+                trait_changes += 1
+        print(f"  OVR 변경 {len(changes)}명 / 특성 변경 {trait_changes}명 (조회 실패 {fails})")
         if changes:
             delta = {}
             for _s, _n, o, n in changes:
@@ -363,7 +400,7 @@ def main():
     if args.dry_run:
         print("\n[--dry-run] 저장하지 않았습니다.")
         return 0
-    if not (added or changes or renamed):
+    if not (added or changes or renamed or trait_changes):
         print("\n바뀐 게 없어 저장을 건너뜁니다.")
         return 0
 
