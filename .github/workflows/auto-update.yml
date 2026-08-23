@@ -15,7 +15,8 @@ concurrency:
 jobs:
   update-json:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 로컬 합계는 5.5분이지만 러너에서 넥슨까지는 왕복이 길어 몇 배로 늘어난다.
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +29,7 @@ jobs:
       # Playwright 를 걷어냈다. update_average.py 가 브라우저 없이 POST 로 목록을 받으면서
       # 20분 걸리던 게 17초가 됐고, 크롬 설치 단계(~1분)도 통째로 사라졌다.
       - name: 의존성 설치
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: OVR 별 평균 시세 (average.json)
         run: python update_average.py

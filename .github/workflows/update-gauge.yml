@@ -25,7 +25,7 @@ concurrency:
 jobs:
   update-gauge:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           cache: pip
 
       - name: 의존성 설치
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: 게이지 표 크롤링
         run: |
@@ -49,7 +49,9 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add gauge_table_60_140.json ovr_spid_table.json
+          git add gauge_table_60_140.json
+          # 1단계를 건너뛴 실행에서는 spid 표가 안 생길 수 있다(없는 경로면 git add 가 실패한다).
+          [ -f ovr_spid_table.json ] && git add ovr_spid_table.json || true
           if git diff --staged --quiet; then
             echo "변경 없음"
           else

@@ -27,7 +27,9 @@ concurrency:
 jobs:
   update-players:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 로컬(한국)에서 88,246명 OVR 재확인이 7분이었지만, GitHub 러너는 넥슨까지 왕복이 훨씬 길다.
+    # 넉넉히 잡는다 — 타임아웃에 걸리면 커밋 단계까지 통째로 날아간다.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -38,22 +40,24 @@ jobs:
           cache: pip
 
       - name: 의존성 설치
-        run: pip install requests beautifulsoup4
+        run: pip install -r requirements.txt
 
       - name: 선수 목록 갱신
         env:
           # 저장소 Settings > Secrets > Actions 에 NEXON_API_TOKEN 을 넣으면 그걸 쓴다.
           # 없으면 스크립트에 박힌 기본 토큰으로 동작한다.
           NEXON_API_TOKEN: ${{ secrets.NEXON_API_TOKEN }}
-        run: |
-          python update_players.py --workers 16 \
-            ${{ inputs.skip_ovr && '--skip-ovr' || '' }}
+        # 러너에서는 지연이 커서 동시 요청을 조금 더 준다(이 작업은 지연이 곧 처리량).
+        run: python update_players.py --workers 24 ${{ inputs.skip_ovr && '--skip-ovr' || '' }}
 
       - name: 변경분 커밋
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add all_players.json seasonid.json ovr_change_log.txt
+          git add all_players.json seasonid.json
+          # OVR 변경이 없으면 로그 파일이 아예 안 생긴다. 없는 경로를 git add 하면
+          # "pathspec did not match" 로 스텝 전체가 실패하므로 있을 때만 넣는다.
+          [ -f ovr_change_log.txt ] && git add ovr_change_log.txt || true
           if git diff --staged --quiet; then
             echo "변경 없음"
           else

@@ -1,0 +1,5 @@
+# 크롤러 의존성.
+# 워크플로의 setup-python 이 `cache: pip` 로 캐시 키를 만들 때도 이 파일을 참조한다.
+# (이 파일이 없으면 setup-python 이 "No file matched to [**/requirements.txt ...]" 로 실패한다)
+requests>=2.31
+beautifulsoup4>=4.12
