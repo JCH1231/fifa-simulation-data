@@ -169,7 +169,9 @@ def main():
     material_cost_cache = {}
 
     deals_to_save = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # 실측: 10 -> 32 스레드에서 92건/s -> 140건/s (9,708명 기준 1.8분 -> 1.2분).
+    # 64 는 오히려 느려진다(서버 쪽에서 제한).
+    with ThreadPoolExecutor(max_workers=32) as executor:
         futures = {executor.submit(_fetch_all_grade_prices, spid): spid for spid in candidate_spids}
         total = len(futures)
         for i, future in enumerate(as_completed(futures)):

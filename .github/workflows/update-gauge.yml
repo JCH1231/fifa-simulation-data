@@ -1,0 +1,59 @@
+name: 게이지 표 갱신 (수동/주 1회)
+
+# gauge_table_60_140.json 은 넥슨이 강화 확률 공식이나 OVR 상한을 건드릴 때만 바뀐다.
+# 시세처럼 자주 돌 필요가 없어서 주 1회 + 수동 실행으로 뒀다.
+#
+# 표는 (강화등급, 대상OVR, 재료OVR) 3중 키다. 대상OVR 은 '그 등급에서 화면에 보이는 OVR' 이고,
+# 앱은 `기본OVR + 보너스[단계]` 로 같은 키를 만든다. 그래서 선수 OVR 이 바뀌면(라이브 부스트)
+# update-players.yml 이 먼저 돌아야 두 파일이 서로 맞는다.
+on:
+  schedule:
+    - cron: '0 19 * * 0'   # 매주 일요일 UTC 19:00 = 한국시간 월요일 새벽 4:00
+  workflow_dispatch:
+    inputs:
+      grades:
+        description: '강화 등급 범위'
+        default: '1-11'
+      ovr:
+        description: 'OVR 범위'
+        default: '40-149'
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  update-gauge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install requests
+
+      - name: 게이지 표 크롤링
+        run: |
+          python gauge_crawler.py \
+            --grades "${{ inputs.grades || '1-11' }}" \
+            --ovr "${{ inputs.ovr || '40-149' }}" \
+            --workers 20
+
+      - name: 변경분 커밋
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add gauge_table_60_140.json ovr_spid_table.json
+          if git diff --staged --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "자동 갱신: 게이지 표"
+            git pull --rebase
+            git push
+          fi

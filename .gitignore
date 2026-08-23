@@ -1,0 +1,19 @@
+# 파이썬 캐시 — 스크립트를 로컬에서 돌리면 생긴다. 저장소에 들어가면 안 된다.
+__pycache__/
+*.py[cod]
+
+# 크롤러 중간 산출물 (중단 시 이어받기용, 커밋 대상 아님)
+.gauge_checkpoint.json
+.ovr_refresh_checkpoint.json
+*.tmp
+*.bak
+
+# 로컬 로그
+fail_log.txt
+name_change_log.txt
+
+# 에디터/OS
+.vs/
+.idea/
+.DS_Store
+Thumbs.db

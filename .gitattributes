@@ -1,0 +1,6 @@
+# 워크플로 YAML 안의 `run: |` 블록은 우분투 러너에서 bash 로 실행된다.
+# CRLF 로 체크아웃되면 줄 끝의 \r 때문에 "$'\r': command not found" 로 깨질 수 있어
+# 항상 LF 로 고정한다. (GitHub Desktop 이 띄우는 CRLF 변환 경고도 이걸로 없어진다.)
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf

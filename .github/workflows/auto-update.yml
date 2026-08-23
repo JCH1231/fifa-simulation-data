@@ -1,44 +1,53 @@
-name: Auto Update Data
+name: 시세 갱신 (2시간마다)
 
+# average.json / deals.json / price_history.json — 시세는 계속 움직이므로 자주 돌린다.
+# 선수 목록(all_players.json)과 게이지 표는 여기서 건드리지 않는다. update-players.yml 참고.
 on:
   schedule:
-    - cron: '0 */2 * * *'  # 2시간마다 실행
+    - cron: '0 */2 * * *'
   workflow_dispatch:
+
+# 앞선 실행이 아직 돌고 있으면 겹치지 않게 한다(같은 파일을 두 번 커밋하다 충돌하던 원인).
+concurrency:
+  group: data-write
+  cancel-in-progress: false
 
 jobs:
   update-json:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4 # 버전 업데이트
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
 
-    - name: Install dependencies
-      run: |
-        pip install playwright requests # [수정] requests 추가
+      # Playwright 를 걷어냈다. update_average.py 가 브라우저 없이 POST 로 목록을 받으면서
+      # 20분 걸리던 게 17초가 됐고, 크롬 설치 단계(~1분)도 통째로 사라졌다.
+      - name: 의존성 설치
+        run: pip install requests
 
-    - name: Install Playwright browsers
-      run: playwright install chromium
+      - name: OVR 별 평균 시세 (average.json)
+        run: python update_average.py
 
-    - name: Run update_average.py
-      run: python update_average.py
+      - name: 강화 매물 (deals.json)
+        run: python deals_crawler.py
 
-    - name: Run deals_crawler.py # [추가] deals_crawler.py 실행 단계
-      run: python deals_crawler.py
+      - name: 시세 그래프 (price_history.json)
+        run: python graphcrawler.py
 
-    - name: Run graphcrawler.py
-      run: python graphcrawler.py
-
-    - name: Commit and push if changed
-      run: |
-        git config --local user.email "actions@github.com"
-        git config --local user.name "GitHub Actions"
-        git add average.json deals.json price_history.json
-        git commit -m "자동 갱신: average.json, deals.json, price_history.json" || echo "no changes to commit"
-        git pull --rebase
-        git push
+      - name: 변경분 커밋
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add average.json deals.json price_history.json
+          if git diff --staged --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "자동 갱신: 시세 (average/deals/price_history)"
+            git pull --rebase
+            git push
+          fi

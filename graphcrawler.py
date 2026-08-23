@@ -148,7 +148,8 @@ def main():
     processed_count = 0
     start_time = time.time()
 
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    # 실측: 20 -> 32 스레드에서 463건/s -> 605건/s. 64 는 158건/s 로 급락한다(서버 제한).
+    with ThreadPoolExecutor(max_workers=32) as executor:
         future_to_player = {executor.submit(parse_and_process_player, p): p for p in target_players}
         for future in as_completed(future_to_player):
             processed_count += 1

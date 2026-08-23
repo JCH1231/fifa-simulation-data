@@ -1,0 +1,63 @@
+name: 선수 목록 갱신 (하루 1회)
+
+# 예전에는 이걸 손으로 했다: DATA_CRAWLER.py -> player_crawler.py -> 깃허브에 직접 업로드.
+# 귀찮아서 자주 안 하게 되고, 그동안 신규 시즌/선수가 빠지고 OVR 이 낡았다.
+#
+# 하는 일 두 가지:
+#   1) 넥슨 메타에 새로 뜬 선수를 상세까지 긁어 추가
+#   2) 기존 선수의 OVR 재확인 — 피파가 라이브 부스트를 주기적으로 조정하기 때문.
+#      OVR 이 틀리면 앱이 `대상OVR = 기본OVR + 보너스[단계]` 로 만드는 게이지 조회 키가
+#      통째로 어긋난다(실측 1,277명이 -7 ~ +10 만큼 밀려 있었다).
+#
+# 시세(2시간짜리)와 파일이 겹치지 않지만, 커밋 충돌을 막으려고 같은 concurrency 그룹을 쓴다.
+on:
+  schedule:
+    - cron: '30 18 * * *'   # UTC 18:30 = 한국시간 새벽 3:30 (시세 워크플로와 안 겹치는 시각)
+  workflow_dispatch:
+    inputs:
+      skip_ovr:
+        description: 'OVR 재확인 건너뛰기 (신규 선수만 추가)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  update-players:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install requests beautifulsoup4
+
+      - name: 선수 목록 갱신
+        env:
+          # 저장소 Settings > Secrets > Actions 에 NEXON_API_TOKEN 을 넣으면 그걸 쓴다.
+          # 없으면 스크립트에 박힌 기본 토큰으로 동작한다.
+          NEXON_API_TOKEN: ${{ secrets.NEXON_API_TOKEN }}
+        run: |
+          python update_players.py --workers 16 \
+            ${{ inputs.skip_ovr && '--skip-ovr' || '' }}
+
+      - name: 변경분 커밋
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add all_players.json seasonid.json ovr_change_log.txt
+          if git diff --staged --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "자동 갱신: 선수 목록 (신규 선수 + OVR)"
+            git pull --rebase
+            git push
+          fi
