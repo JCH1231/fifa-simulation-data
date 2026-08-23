@@ -47,16 +47,16 @@ def fetch_player_graph_data(spid, grade=8):
     return None
 
 
-def parse_and_process_player(player):
-    """[수정] 선수 정보와 spid를 받아 여러 데이터 형식을 안정적으로 파싱합니다."""
-    spid = player.get('spid')
-    if not spid:
-        return None
+# 배율빔으로 볼 강화 등급. 예전에는 8강 하나만 받아서 배율빔 매물도 8강만 나왔다.
+# 실측: 등급마다 시세가 확연히 다르고(같은 선수 8강 1998만 / 11강 6520만),
+# 표본 120명 전원이 8~11강 모두 데이터를 갖고 있었다.
+TARGET_GRADES = (8, 9, 10, 11)
 
-    graph_text = fetch_player_graph_data(spid, grade=8)
+
+def parse_graph_text(graph_text):
+    """그래프 응답 HTML에서 [{'time': ms, 'value': int}, ...] 를 뽑는다."""
     if not graph_text:
         return None
-
     try:
         match = re.search(r"var chartData = (\{.*?\});", graph_text, re.DOTALL)
         if not match:
@@ -102,17 +102,46 @@ def parse_and_process_player(player):
             # 시간순으로 다시 뒤집기
             price_points = temp_points[::-1]
 
-        if not price_points:
-            return None
-
-        return {
-            "spid": spid,
-            "name": player.get('name'),
-            "prices": price_points
-        }
+        return price_points or None
     except Exception as e:
-        print(f"SPID {spid} 파싱 실패 (예외 발생): {e}")
+        print(f"그래프 파싱 실패 (예외 발생): {e}")
         return None
+
+
+def parse_and_process_player(player):
+    """선수 한 명의 8~11강 가격 내역을 모아서 돌려준다.
+
+    저장 형식은 등급별로 통째로 중첩하지 않고 time 배열을 등급끼리 공유한다:
+        {"name": ..., "times": [ms, ...], "values": {"8": [v, ...], "9": [...]}}
+    실측상 한 선수의 time 배열은 등급이 달라도 완전히 동일했고(표본 120명 전원),
+    그냥 중첩하면 파일이 68.5MB 가 되는데 time 을 공유하면 23.8MB 로 줄어든다.
+    이 파일은 앱 사용자가 매번 내려받으므로 크기가 그대로 체감 속도가 된다.
+    """
+    spid = player.get('spid')
+    if not spid:
+        return None
+
+    times = None
+    values = {}
+    for grade in TARGET_GRADES:
+        points = parse_graph_text(fetch_player_graph_data(spid, grade=grade))
+        if not points:
+            continue
+        t = [p['time'] for p in points]
+        if times is None:
+            times = t
+            values[str(grade)] = [p['value'] for p in points]
+        elif t == times:
+            values[str(grade)] = [p['value'] for p in points]
+        else:
+            # 등급끼리 time 이 어긋나면(실측상 없었지만) 공유 배열에 못 넣는다.
+            # 값을 엉뚱한 날짜에 붙이느니 그 등급만 버린다.
+            print(f"SPID {spid} {grade}강: time 배열 불일치 — 이 등급은 건너뜀")
+
+    if not values:
+        return None
+
+    return {"spid": spid, "name": player.get('name'), "times": times, "values": values}
 
 
 def main():
@@ -161,7 +190,11 @@ def main():
             try:
                 result = future.result()
                 if result:
-                    all_results[result['spid']] = {"name": result['name'], "prices": result['prices']}
+                    all_results[result['spid']] = {
+                        "name": result['name'],
+                        "times": result['times'],
+                        "values": result['values'],
+                    }
             except Exception as exc:
                 print(f'선수 처리 중 예외 발생: {exc}')
 
@@ -169,26 +202,37 @@ def main():
                 elapsed_time = time.time() - start_time
                 print(f"진행 상황: {processed_count}/{total_count} ({processed_count / total_count:.1%}) | 소요 시간: {elapsed_time:.1f}초")
 
-    # [수정 완료] 30일치 데이터 필터링 및 저장 (중복 저장 코드 삭제)
+    # 30일치만 보존 — API 는 365일을 주는데 배율빔은 최대 30일 창만 쓴다.
     print(f"\n데이터 최적화 시작: 최근 30일치 데이터만 보존합니다.")
     processed_results = {}
-    
-    # 30일 전 타임스탬프 계산 (밀리초 단위)
-    # ※ 코드 맨 위 import에 from datetime import datetime, timedelta 가 있는지 확인하세요!
-    limit_date = datetime.now() - timedelta(days=30)
-    limit_ts = int(limit_date.timestamp() * 1000)
+    limit_ts = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
 
     for spid, data in all_results.items():
-        recent_prices = [p for p in data['prices'] if p['time'] >= limit_ts]
-        if recent_prices:
-            processed_results[spid] = {"name": data['name'], "prices": recent_prices}
-    
-    output_filename = "price_history.json"
-    with open(output_filename, "w", encoding="utf-8") as f:
+        times = data['times']
+        keep = [i for i, t in enumerate(times) if t >= limit_ts]
+        if len(keep) < 2:      # 배율빔은 포인트 2개 이상이어야 계산된다
+            continue
+        processed_results[spid] = {
+            "name": data['name'],
+            "times": [times[i] for i in keep],
+            "values": {g: [vals[i] for i in keep] for g, vals in data['values'].items()},
+        }
+
+    output_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "price_history.json")
+    tmp = output_filename + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(processed_results, f, ensure_ascii=False)
+    os.replace(tmp, output_filename)
 
     end_time = time.time()
-    print(f"\n완료! 총 {len(processed_results)}명의 선수 정보를 {output_filename} 파일에 저장했습니다.")
+    size_mb = os.path.getsize(output_filename) / 1024 / 1024
+    grade_counts = {}
+    for d in processed_results.values():
+        for g in d['values']:
+            grade_counts[g] = grade_counts.get(g, 0) + 1
+    print(f"\n완료! 총 {len(processed_results)}명의 선수 정보를 저장했습니다 ({size_mb:.1f}MB).")
+    print(f"등급별 보유 선수 수: {dict(sorted(grade_counts.items(), key=lambda x: int(x[0])))}")
     print(f"총 소요 시간: {end_time - start_time:.1f}초")
 
 
