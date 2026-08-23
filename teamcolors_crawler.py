@@ -77,7 +77,12 @@ def _get(url, retries=3, **kw):
 
 
 def fetch_list(url):
-    """목록 페이지에서 (id, 이름) 을 뽑는다. 예전처럼 손으로 저장한 파일이 필요 없다."""
+    """목록 페이지에서 {id: {"name":…, "crest":…}} 를 뽑는다.
+
+    crest 는 팀 엠블럼 이미지 URL이다. 앱 스쿼드메이커가 활성 팀컬러를 글자 대신
+    엠블럼으로 보여주는 데 쓴다(공식 홈페이지 스쿼드메이커와 같은 방식).
+    예전처럼 손으로 저장한 HTML 파일이 필요 없다.
+    """
     r = _get(url)
     if r is None:
         return {}
@@ -89,8 +94,13 @@ def fetch_list(url):
         if not (a and name_el):
             continue
         m = _RE_ID.search(a.get("onclick") or "")
-        if m:
-            out[m.group(1)] = name_el.get_text(strip=True)
+        if not m:
+            continue
+        img = item.select_one(".crests img")
+        out[m.group(1)] = {
+            "name": name_el.get_text(strip=True),
+            "crest": (img.get("src") or "") if img else "",
+        }
     return out
 
 
@@ -179,7 +189,8 @@ def main():
             continue    # 단계 정보를 못 받은 건 넣지 않는다(반쪽 데이터 방지)
         data.append({
             "id": tid,
-            "name": all_items[tid],
+            "name": all_items[tid]["name"],
+            "crest": all_items[tid]["crest"],
             "type": "특성 팀컬러" if tid in relation_ids else "소속 팀컬러",
             "levels": lv,
             "players": players_map.get(tid, []),
