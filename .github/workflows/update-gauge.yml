@@ -1,7 +1,8 @@
-name: 게이지 표 갱신 (수동/주 1회)
+name: 게이지 표·팀컬러 갱신 (수동/주 1회)
 
-# gauge_table_60_140.json 은 넥슨이 강화 확률 공식이나 OVR 상한을 건드릴 때만 바뀐다.
-# 시세처럼 자주 돌 필요가 없어서 주 1회 + 수동 실행으로 뒀다.
+# 자주 안 바뀌는 참고 데이터를 함께 주 1회 갱신한다.
+#  · gauge_table_60_140.json — 넥슨이 강화 확률 공식이나 OVR 상한을 건드릴 때만 바뀐다.
+#  · team_colors.json        — 팀컬러 효과는 1년에 두 번 정도 개편된다.
 #
 # 표는 (강화등급, 대상OVR, 재료OVR) 3중 키다. 대상OVR 은 '그 등급에서 화면에 보이는 OVR' 이고,
 # 앱은 `기본OVR + 보너스[단계]` 로 같은 키를 만든다. 그래서 선수 OVR 이 바뀌면(라이브 부스트)
@@ -45,17 +46,22 @@ jobs:
             --ovr "${{ inputs.ovr || '40-149' }}" \
             --workers 20
 
+      # 예전에는 사람이 팀컬러 목록 페이지를 손으로 저장해(!DOCTYPE html.txt) 그 파일을
+      # 읽어야 했다. 이제 목록·단계별 효과·소속 선수를 전부 온라인에서 받는다(약 1분).
+      - name: 팀컬러 크롤링
+        run: python teamcolors_crawler.py --workers 16
+
       - name: 변경분 커밋
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add gauge_table_60_140.json
+          git add gauge_table_60_140.json team_colors.json
           # 1단계를 건너뛴 실행에서는 spid 표가 안 생길 수 있다(없는 경로면 git add 가 실패한다).
           [ -f ovr_spid_table.json ] && git add ovr_spid_table.json || true
           if git diff --staged --quiet; then
             echo "변경 없음"
           else
-            git commit -m "자동 갱신: 게이지 표"
+            git commit -m "자동 갱신: 게이지 표 + 팀컬러"
             git pull --rebase
             git push
           fi
