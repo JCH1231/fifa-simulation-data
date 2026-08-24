@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """all_players.json 을 갱신한다: 신규 선수 추가 + 기존 선수 OVR 재확인. (하루 1회 실행)
 
 [예전에 수동으로 하던 것]
@@ -53,6 +53,8 @@ API_TOKEN = os.environ.get("NEXON_API_TOKEN", "").strip() or (
 _RE_OVR = re.compile(r'class="[^"]*\bovr\b[^"]*\bvalue\b[^"]*"[^>]*>\s*(\d+)')
 # <img src=".../traits/trait_icon_59.png" alt="커맨더" />
 _RE_TRAIT = re.compile(r'trait_icon_(\d+)\.png"')
+# 급여: <div class="pay"> ... <span>32</span>. 라이브 부스트로 바뀌므로 매번 다시 읽는다.
+_RE_PAY = re.compile(r'class="[^"]*\bpay\b[^"]*"[^>]*>(?:(?!</div>).)*?<span[^>]*>\s*(\d+)\s*</span>', re.S)
 
 _tls = threading.local()
 
@@ -89,7 +91,7 @@ def _ability_html(spid, retries=3):
 
 
 def fetch_ovr_and_traits(spid):
-    """현재 OVR과 보유 특성 ID 목록을 한 번의 조회로 가져온다 → (ovr, [trait_id, ...]).
+    """현재 OVR·급여·보유 특성 ID 를 한 번의 조회로 가져온다 → (ovr, [trait_id, ...], pay).
 
     특성을 이름 문자열이 아니라 ID로 저장하는 이유:
       · 예전에는 `skills` 에 "특성 파워 헤더 중거리 슛 선호" 같은 한 덩어리 문자열만 넣고,
@@ -98,13 +100,17 @@ def fetch_ovr_and_traits(spid):
         그렇게 죽어 있었다).
       · 게다가 이 skills 는 신규 선수를 처음 긁을 때만 채워지고 그 뒤로 갱신되지 않아,
         신규 특성이 추가돼도 반영이 안 됐다(실측 표본의 72%가 신규 특성 누락).
+    급여도 같이 돌려준다. 라이브 부스트를 받으면 OVR 과 함께 급여도 바뀌는데 예전에는
+    기존 선수의 급여를 한 번도 갱신하지 않아, 처음 긁힌 값 그대로 낡아 있었다.
     OVR 갱신을 위해 어차피 받아오는 바로 그 페이지에서 같이 뽑으므로 추가 요청이 0이다.
     """
     html = _ability_html(spid)
     if not html:
-        return None, None
+        return None, None, None
     m = _RE_OVR.search(html)
     ovr = int(m.group(1)) if m else None
+    pm = _RE_PAY.search(html)
+    pay = pm.group(1) if pm else None
     # 등장 순서를 유지하면서 중복만 제거(같은 아이콘이 여러 번 나올 수 있다)
     seen, trait_ids = set(), []
     for t in _RE_TRAIT.findall(html):
@@ -112,7 +118,7 @@ def fetch_ovr_and_traits(spid):
         if tid not in seen:
             seen.add(tid)
             trait_ids.append(tid)
-    return ovr, trait_ids
+    return ovr, trait_ids, pay
 
 
 # ───────── 신규 선수 상세 파싱 (player_crawler.py 의 추출 로직을 그대로 옮김) ─────────
@@ -370,9 +376,10 @@ def main():
     trait_changes = 0
     if not args.skip_ovr:
         live_ids = [it["id"] for it in spid_meta if it["id"] in by_spid]
-        print(f"\n현역 선수 {len(live_ids)}명 OVR·특성 재확인")
+        print(f"\n현역 선수 {len(live_ids)}명 OVR·급여·특성 재확인")
         got, fails = run_pool(fetch_ovr_and_traits, live_ids, args.workers, "OVR")
-        for spid, (ovr, trait_ids) in got.items():
+        pay_changes = []
+        for spid, (ovr, trait_ids, pay) in got.items():
             p = by_spid[spid]
             if ovr is not None:
                 try:
@@ -382,6 +389,10 @@ def main():
                 if old != ovr:
                     changes.append((spid, p.get("name"), old, ovr))
                     p["overall"] = str(ovr)
+            # 급여도 라이브 부스트로 같이 바뀐다. 예전엔 처음 값 그대로 굳어 있었다.
+            if pay and str(p.get("pay")) != str(pay):
+                pay_changes.append((spid, p.get("name"), p.get("pay"), pay))
+                p["pay"] = str(pay)
             # 특성은 게임 패치로 새로 붙거나 빠질 수 있어 항상 최신으로 덮어쓴다.
             # 조회는 됐는데 특성이 하나도 없는 건 정상(특성 없는 선수도 있다).
             if trait_ids is not None and p.get("trait_ids") != trait_ids:
