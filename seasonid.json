@@ -30,6 +30,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 877,
+    "className": "UC (Untouchable Champions)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/uc.png"
+  },
+  {
     "seasonId": 867,
     "className": "SPT (Spartan)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/spt.png"
