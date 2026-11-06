@@ -30,6 +30,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 878,
+    "className": "26UP (26 Undroppable Player)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26up.png"
+  },
+  {
     "seasonId": 877,
     "className": "UC (Untouchable Champions)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/uc.png"
@@ -135,9 +140,19 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/bdo.png"
   },
   {
+    "seasonId": 885,
+    "className": "EVO-EP (EVO-Energetic Player)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/evo_ep.png"
+  },
+  {
     "seasonId": 826,
     "className": "24EP (2024 Energetic Player)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/24ep.png"
+  },
+  {
+    "seasonId": 886,
+    "className": "EVO-CU (EVO-Champions of Europe)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/evo_cu.png"
   },
   {
     "seasonId": 825,
@@ -660,6 +675,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/20klb.png"
   },
   {
+    "seasonId": 519,
+    "className": "26 PL (26 Premium Live)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26pla.png"
+  },
+  {
     "seasonId": 517,
     "className": "25 PL (25 Premium Live)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25pla.png"
@@ -711,8 +731,13 @@
   },
   {
     "seasonId": 300,
-    "className": "25 LIVE (25 LIVE)",
+    "className": "26 LIVE (26 LIVE)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/live.png"
+  },
+  {
+    "seasonId": 325,
+    "className": "25 LIVE (25 LIVE)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/25.png"
   },
   {
     "seasonId": 324,
@@ -763,5 +788,10 @@
     "seasonId": 879,
     "className": "LKI2 (LKI2)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/lki2.png"
+  },
+  {
+    "seasonId": 884,
+    "className": "LKI3 (LKI3)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/lki3.png"
   }
 ]
