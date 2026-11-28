@@ -30,6 +30,11 @@
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/filter/icon_m.png"
   },
   {
+    "seasonId": 881,
+    "className": "DR (Derby Rivals)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/dr.png"
+  },
+  {
     "seasonId": 878,
     "className": "26UP (26 Undroppable Player)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26up.png"
@@ -643,6 +648,11 @@
     "seasonId": 504,
     "className": "20KLeague (20KLeague)",
     "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/20kl.png"
+  },
+  {
+    "seasonId": 883,
+    "className": "26KB (26 K-League Best)",
+    "seasonImg": "https://ssl.nexon.com/s2/game/fc/online/obt/externalAssets/new/season/26kb.png"
   },
   {
     "seasonId": 853,
